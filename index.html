@@ -29,11 +29,8 @@
         .login-card { background: white; padding: 30px; border-radius: 25px; box-shadow: var(--shadow); }
         input { padding: 15px; font-size: 1.2rem; border-radius: 50px; border: 2px solid #eee; background: #f9f9f9; text-align: center; width: 100%; box-sizing: border-box; margin-bottom: 15px; outline: none; }
         input:focus { border-color: var(--trish); background: #fff; }
-        
-        /* Buttons */
         .btn-main { padding: 15px; background: var(--trish); color: white; border: none; border-radius: 50px; font-size: 1.2rem; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 4px 10px rgba(255, 141, 161, 0.4); transition: transform 0.1s; }
         .btn-main:active { transform: scale(0.95); }
-        .btn-sec { background: white; color: var(--text); border: 2px solid #eee; margin-top: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
 
         /* Cards */
         .user-card { background: var(--card); border-radius: 30px; padding: 20px; margin-bottom: 25px; text-align: center; border: 3px solid transparent; transition: 0.3s; box-shadow: var(--shadow); position: relative; }
@@ -42,9 +39,7 @@
         .avatar { font-size: 3rem; display: block; margin-bottom: 5px; }
         .user-name { font-size: 1.1rem; font-weight: 800; text-transform: uppercase; color: #888; }
         .count { font-size: 5rem; font-weight: 800; line-height: 1; margin: 10px 0; color: var(--text); text-shadow: 2px 2px 0px #eee; }
-        
-        .moe .user-name { color: var(--moe); } 
-        .trish .user-name { color: var(--trish); }
+        .moe .user-name { color: var(--moe); } .trish .user-name { color: var(--trish); }
 
         /* Controls */
         .controls { display: flex; justify-content: center; gap: 25px; margin-top: 15px; }
@@ -60,7 +55,12 @@
         .stats-table td { padding: 15px 10px; border-bottom: 2px dashed #f0f0f0; font-size: 1.2rem; font-weight: 800; }
         .val-moe { color: var(--moe); } .val-trish { color: var(--trish); }
 
-        /* Animations */
+        /* Bottom Nav */
+        nav { background: white; border-top: 2px solid #eee; display: flex; padding-bottom: env(safe-area-inset-bottom); height: 80px; box-shadow: 0 -5px 20px rgba(0,0,0,0.02); }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ccc; font-size: 0.8rem; font-weight: 800; gap: 5px; transition: 0.2s; cursor: pointer; }
+        .nav-item.active { color: var(--trish); transform: scale(1.1); }
+        .nav-icon { font-size: 1.5rem; }
+
         @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(0.5); } 100% { opacity: 0; transform: translateY(-50px) scale(1.5); } }
         .kanpai-pop { position: absolute; font-weight: 900; color: #ffbf00; font-size: 2rem; pointer-events: none; animation: floatUp 1s ease-out forwards; z-index: 99; text-shadow: 2px 2px 0 #fff; width: 100%; text-align: center; left: 0; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -81,7 +81,6 @@
 
         <div id="view-tracker" class="hidden">
             <div style="text-align:center; margin-bottom:20px; color:#aaa; font-weight:bold;">TODAY'S SCORE</div>
-            
             <div class="user-card moe" id="card-moe">
                 <div class="avatar">🐻</div>
                 <div class="user-name">Moe</div>
@@ -91,7 +90,6 @@
                     <button class="btn-round plus" onclick="addDrink('Moe', 1)">🍺</button>
                 </div>
             </div>
-
             <div class="user-card trish" id="card-trish">
                 <div class="avatar">🐱</div>
                 <div class="user-name">Trish</div>
@@ -101,19 +99,13 @@
                     <button class="btn-round plus" onclick="addDrink('Trish', 1)">🍷</button>
                 </div>
             </div>
-
-            <button class="btn-main btn-sec" onclick="showAnalytics()">📊 See History</button>
         </div>
 
         <div id="view-analytics" class="hidden">
-            <button class="btn-main btn-sec" style="margin-top:0; margin-bottom:20px; background:#f9f9f9;" onclick="showTracker()">⬅ Back</button>
-
             <div class="analytics-container">
                 <h3 style="text-align:center; color:var(--text); margin-top:0;">History Log</h3>
                 <table class="stats-table">
-                    <thead>
-                        <tr><th>Period</th><th>🐻 Moe</th><th>🐱 Trish</th></tr>
-                    </thead>
+                    <thead><tr><th>Period</th><th>🐻 Moe</th><th>🐱 Trish</th></tr></thead>
                     <tbody>
                         <tr><td>Today</td><td class="val-moe" id="stat-day-moe">0</td><td class="val-trish" id="stat-day-trish">0</td></tr>
                         <tr><td>7 Days</td><td class="val-moe" id="stat-week-moe">0</td><td class="val-trish" id="stat-week-trish">0</td></tr>
@@ -125,6 +117,15 @@
             <div style="text-align:center; margin-top:40px; color:#aaa; font-size:0.8rem;">Ganbatte! (Do your best!)</div>
         </div>
     </div>
+
+    <nav id="nav" class="hidden">
+        <div class="nav-item active" id="tab-tracker" onclick="nav('tracker')">
+            <span class="nav-icon">📝</span><span>Tracker</span>
+        </div>
+        <div class="nav-item" id="tab-analytics" onclick="nav('analytics')">
+            <span class="nav-icon">📊</span><span>History</span>
+        </div>
+    </nav>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -146,43 +147,46 @@
         const historyRef = ref(db, 'history');
         let allHistory = [];
 
-        // --- AUTH LOGIC ---
+        // --- AUTH ---
         const btn = document.getElementById('btn-login');
         const passInput = document.getElementById('pass-input');
 
         function login() {
             if(passInput.value === 'Moetrin') {
                 localStorage.setItem('auth_token', 'Moetrin');
-                showTracker();
+                startApp();
             } else {
                 alert("Wrong Password");
             }
         }
-
+        
         btn.addEventListener('click', login);
         passInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') login(); });
 
-        if(localStorage.getItem('auth_token') === 'Moetrin') showTracker();
+        if(localStorage.getItem('auth_token') === 'Moetrin') startApp();
 
-        // --- NAVIGATION ---
-        window.showTracker = function() {
+        function startApp() {
             document.getElementById('view-login').classList.add('hidden');
-            document.getElementById('view-analytics').classList.add('hidden');
-            document.getElementById('view-tracker').classList.remove('hidden');
-            document.getElementById('app-header').innerText = "Drink Tracker";
+            document.getElementById('nav').classList.remove('hidden');
+            nav('tracker');
         }
 
-        window.showAnalytics = function() {
+        // --- NAV ---
+        window.nav = function(tab) {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.getElementById('tab-'+tab).classList.add('active');
+            
             document.getElementById('view-tracker').classList.add('hidden');
-            document.getElementById('view-analytics').classList.remove('hidden');
-            document.getElementById('app-header').innerText = "History";
+            document.getElementById('view-analytics').classList.add('hidden');
+            
+            document.getElementById('view-'+tab).classList.remove('hidden');
+            document.getElementById('app-header').innerText = tab === 'tracker' ? "Drink Tracker" : "History";
         }
 
-        // --- DATABASE LOGIC ---
+        // --- DB LOGIC ---
         window.addDrink = function(user, amount) {
             if(amount > 0) {
                 push(historyRef, { user: user, timestamp: Date.now(), value: 1 });
-                // Kanpai Animation
                 const card = document.getElementById('card-' + user.toLowerCase());
                 const pop = document.createElement('div');
                 pop.className = 'kanpai-pop';
@@ -223,10 +227,8 @@
                 if (entry.timestamp >= startOfDay) stats[u].day++;
             });
 
-            // Update DOM
             document.getElementById('c-moe').innerText = stats.moe.day;
             document.getElementById('c-trish').innerText = stats.trish.day;
-            
             document.getElementById('stat-day-moe').innerText = stats.moe.day;
             document.getElementById('stat-day-trish').innerText = stats.trish.day;
             document.getElementById('stat-week-moe').innerText = stats.moe.week;
