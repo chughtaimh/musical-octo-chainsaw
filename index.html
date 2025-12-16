@@ -4,235 +4,85 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="M&T Drinks">
     <title>M&T Drinks Tracker</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
-
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23fdfbf7' rx='22'/%3E%3Crect x='15' y='35' width='25' height='35' rx='4' fill='%236ab7ff' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M40 40 C 50 40, 50 60, 40 60' fill='none' stroke='%23544a4a' stroke-width='3'/%3E%3Crect x='15' y='35' width='25' height='10' rx='2' fill='white' opacity='0.5'/%3E%3Cpath d='M60 35 Q 60 60 75 60 Q 90 60 90 35 Z' fill='%23ff8da1' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='75' y1='60' x2='75' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='65' y1='80' x2='85' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M50 20 L52 25 L57 27 L52 29 L50 34 L48 29 L43 27 L48 25 Z' fill='%23ffd700'/%3E%3C/svg%3E">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23fdfbf7' rx='22'/%3E%3Crect x='15' y='35' width='25' height='35' rx='4' fill='%236ab7ff' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M40 40 C 50 40, 50 60, 40 60' fill='none' stroke='%23544a4a' stroke-width='3'/%3E%3Crect x='15' y='35' width='25' height='10' rx='2' fill='white' opacity='0.5'/%3E%3Cpath d='M60 35 Q 60 60 75 60 Q 90 60 90 35 Z' fill='%23ff8da1' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='75' y1='60' x2='75' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='65' y1='80' x2='85' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M50 20 L52 25 L57 27 L52 29 L50 34 L48 29 L43 27 L48 25 Z' fill='%23ffd700'/%3E%3C/svg%3E">
-
+    
     <style>
-        :root { 
-            --bg-color: #fdfbf7; 
-            --card-bg: #ffffff;
-            --moe-color: #6ab7ff; 
-            --trish-color: #ff8da1; 
-            --text-main: #544a4a; 
-            --shadow: 0 8px 20px rgba(149, 157, 165, 0.15);
-        }
-
-        body { 
-            font-family: 'M PLUS Rounded 1c', sans-serif; 
-            background-color: var(--bg-color); 
-            background-image: radial-gradient(#ff8da1 1px, transparent 1px), radial-gradient(#6ab7ff 1px, transparent 1px);
-            background-size: 40px 40px;
-            background-position: 0 0, 20px 20px;
-            color: var(--text-main); 
-            margin: 0; 
-            display: flex; 
-            flex-direction: column; 
-            height: 100vh; 
-            overflow: hidden; 
-        }
+        #debug-console { background: #000; color: #0f0; font-family: monospace; padding: 10px; margin-top: 20px; font-size: 12px; border-radius: 8px; min-height: 100px; white-space: pre-wrap; word-wrap: break-word; }
+        .error-msg { color: #ff5858; font-weight: bold; }
         
-        /* HEADER */
-        header { 
-            padding: 25px; 
-            text-align: center; 
-            font-weight: 800; 
-            background: rgba(255,255,255,0.9);
-            backdrop-filter: blur(10px);
-            border-bottom: 2px solid #eee;
-            color: var(--trish-color);
-            font-size: 1.2rem;
-            letter-spacing: 1px;
-        }
-
-        #app-content { flex: 1; padding: 25px; overflow-y: auto; display: flex; flex-direction: column; position: relative;}
+        /* APP STYLES */
+        :root { --bg-color: #fdfbf7; --card-bg: #ffffff; --moe-color: #6ab7ff; --trish-color: #ff8da1; --text-main: #544a4a; --shadow: 0 8px 20px rgba(149, 157, 165, 0.15); }
+        body { font-family: 'M PLUS Rounded 1c', sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: auto; padding: 20px; box-sizing: border-box; }
         .hidden { display: none !important; }
-
-        /* LOGIN */
-        #view-login { display: flex; flex-direction: column; justify-content: center; height: 100%; text-align: center; }
-        .login-card { background: white; padding: 30px; border-radius: 25px; box-shadow: var(--shadow); }
-        input[type="password"] { padding: 15px; font-size: 1.2rem; border-radius: 50px; border: 2px solid #eee; background: #f9f9f9; text-align: center; width: 100%; box-sizing: border-box; font-family: inherit; margin-bottom: 15px; outline: none; transition: 0.3s;}
-        input[type="password"]:focus { border-color: var(--trish-color); background: #fff;}
         
-        /* Button Styles */
-        .login-btn, .nav-link-btn { padding: 15px; background: var(--trish-color); color: white; border: none; border-radius: 50px; font-size: 1.2rem; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 4px 10px rgba(255, 141, 161, 0.4); transition: transform 0.1s;}
-        .login-btn:active, .nav-link-btn:active { transform: scale(0.95); }
-        .nav-link-btn { background: white; color: var(--text-main); border: 2px solid #eee; margin-top: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-
-        /* PROFILE SELECT */
-        .profile-container { display: flex; flex-direction: column; gap: 20px; justify-content: center; height: 100%; }
-        .profile-btn { 
-            background: white; border: 3px solid transparent; padding: 20px; border-radius: 30px; 
-            font-size: 1.5rem; text-align: center; font-weight: 800; cursor: pointer; 
-            box-shadow: var(--shadow); transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-            display: flex; align-items: center; justify-content: center; gap: 15px;
-        }
-        .profile-btn.moe { color: var(--moe-color); }
-        .profile-btn.trish { color: var(--trish-color); }
-        .profile-btn:active { transform: scale(0.95); }
-
-        /* CARDS */
-        .user-card { 
-            background: var(--card-bg); border-radius: 30px; padding: 20px; margin-bottom: 25px; 
-            text-align: center; border: 3px solid transparent; transition: 0.3s; 
-            box-shadow: var(--shadow); position: relative;
-        }
-        .user-card.active-user { border-color: #ffd700; transform: translateY(-5px); }
-        .user-card.active-user::after { content: '⭐'; position: absolute; top: -15px; right: -10px; font-size: 2rem; animation: spin 3s infinite linear;}
-
-        .avatar { font-size: 3rem; display: block; margin-bottom: 5px; }
-        .user-name { font-size: 1.1rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 5px; text-transform: uppercase; color: #888; }
-        .count { font-size: 5rem; font-weight: 800; line-height: 1; margin: 10px 0; color: var(--text-main); text-shadow: 2px 2px 0px #eee;}
-        
-        .moe .user-name { color: var(--moe-color); } 
-        .trish .user-name { color: var(--trish-color); }
-
-        /* CONTROLS */
-        .controls { display: flex; justify-content: center; gap: 25px; margin-top: 15px; }
-        .btn { 
-            width: 70px; height: 70px; border-radius: 25px; border: none; font-size: 2.5rem; 
-            display: flex; align-items: center; justify-content: center; cursor: pointer; 
-            touch-action: manipulation; transition: transform 0.1s;
-            box-shadow: 0 5px 0 rgba(0,0,0,0.1); background: #f0f0f0; color: #888;
-        }
-        .btn:active { transform: translateY(4px); box-shadow: none; }
-        .moe .plus { background: var(--moe-color); color: white; box-shadow: 0 5px 0 #4a90e2; }
-        .trish .plus { background: var(--trish-color); color: white; box-shadow: 0 5px 0 #e06c80; }
-
-        /* ANALYTICS */
-        .analytics-container { background: white; border-radius: 25px; padding: 20px; box-shadow: var(--shadow); }
-        .stats-table { width: 100%; border-collapse: collapse; }
-        .stats-table th { text-align: left; color: #aaa; padding: 10px; font-size: 0.8rem; text-transform: uppercase;}
-        .stats-table td { padding: 15px 10px; border-bottom: 2px dashed #f0f0f0; font-size: 1.2rem; font-weight: 800;}
-        .val-moe { color: var(--moe-color); }
-        .val-trish { color: var(--trish-color); }
-
-        /* NAVBAR */
-        nav { background: white; border-top: 2px solid #eee; display: flex; padding-bottom: env(safe-area-inset-bottom); height: 80px; box-shadow: 0 -5px 20px rgba(0,0,0,0.02); }
-        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ccc; font-size: 0.8rem; font-weight: 800; gap: 5px; transition: 0.2s;}
-        .nav-item.active { color: var(--trish-color); transform: scale(1.1); }
-        .nav-icon { font-size: 1.5rem; }
-
-        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(0.5); } 100% { opacity: 0; transform: translateY(-50px) scale(1.5); } }
-        .kanpai-pop { position: absolute; font-weight: 900; color: #ffbf00; font-size: 2rem; pointer-events: none; animation: floatUp 1s ease-out forwards; z-index: 99; text-shadow: 2px 2px 0 #fff; width: 100%; text-align: center; left: 0;}
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        /* Elements */
+        .login-card { background: white; padding: 30px; border-radius: 25px; box-shadow: var(--shadow); text-align: center; }
+        input { padding: 15px; font-size: 1.2rem; border-radius: 50px; border: 2px solid #eee; width: 100%; box-sizing: border-box; margin-bottom: 15px; text-align: center; }
+        button { padding: 15px; background: var(--trish-color); color: white; border: none; border-radius: 50px; font-size: 1.2rem; font-weight: bold; cursor: pointer; width: 100%; margin-top:10px; }
+        .user-card { background: white; border-radius: 30px; padding: 20px; margin-bottom: 20px; text-align: center; box-shadow: var(--shadow); position: relative; }
+        .user-card.active-user { border: 2px solid #ffd700; }
+        .count { font-size: 4rem; font-weight: 800; margin: 10px 0; }
+        .controls { display: flex; justify-content: center; gap: 20px; }
+        .btn-round { width: 60px; height: 60px; border-radius: 20px; background: #f0f0f0; border: none; font-size: 2rem; }
     </style>
 </head>
 <body>
-    <header id="app-header">Welcome</header>
+
+    <div id="debug-console">System Ready...<br></div>
 
     <div id="app-content">
         <div id="view-login">
             <div class="login-card">
-                <div style="font-size: 4rem; margin-bottom: 20px;">⛩️</div>
-                <h2 style="margin-bottom:10px; color: var(--trish-color);">Welcome Back!</h2>
-                <p style="color:#aaa; margin-bottom: 30px; font-size: 0.9rem;">Please enter the secret code</p>
-                <input type="password" id="pass-input" placeholder="Password">
-                <button id="btn-login" class="login-btn">Start Tracker</button>
-                <p id="login-error" style="color:var(--trish-color); margin-top:15px; display:none; font-weight:bold;">Incorrect Password</p>
-            </div>
-        </div>
-
-        <div id="view-profile" class="hidden profile-container">
-            <h2 style="text-align:center; color: #aaa;">Who are you today?</h2>
-            <div class="profile-btn moe" onclick="setProfile('Moe')">
-                <span style="font-size:2.5rem">🐻</span> Moe
-            </div>
-            <div class="profile-btn trish" onclick="setProfile('Trish')">
-                <span style="font-size:2.5rem">🐱</span> Trish
+                <h2>⛩️ Welcome</h2>
+                <input type="password" id="pass-input" placeholder="Password (Moetrin)">
+                <button id="btn-login">Start Tracker</button>
             </div>
         </div>
 
         <div id="view-tracker" class="hidden">
-            <div style="text-align:center; margin-bottom:20px; color:#aaa; font-weight:bold; letter-spacing:1px;">TODAY'S SCORE</div>
+            <h3 style="text-align:center">Today's Score</h3>
             
-            <div class="user-card moe" id="card-moe">
-                <div class="avatar">🐻</div>
-                <div class="user-name">Moe</div>
+            <div class="user-card" id="card-moe">
+                <h3>🐻 Moe</h3>
                 <div class="count" id="c-moe">...</div>
                 <div class="controls">
-                    <button class="btn minus" onclick="addDrink('Moe', -1)">−</button>
-                    <button class="btn plus" onclick="addDrink('Moe', 1)">🍺</button>
+                    <button class="btn-round" onclick="addDrink('Moe', -1)">-</button>
+                    <button class="btn-round" onclick="addDrink('Moe', 1)" style="background:#6ab7ff; color:white">🍺</button>
                 </div>
             </div>
 
-            <div class="user-card trish" id="card-trish">
-                <div class="avatar">🐱</div>
-                <div class="user-name">Trish</div>
+            <div class="user-card" id="card-trish">
+                <h3>🐱 Trish</h3>
                 <div class="count" id="c-trish">...</div>
                 <div class="controls">
-                    <button class="btn minus" onclick="addDrink('Trish', -1)">−</button>
-                    <button class="btn plus" onclick="addDrink('Trish', 1)">🍷</button>
+                    <button class="btn-round" onclick="addDrink('Trish', -1)">-</button>
+                    <button class="btn-round" onclick="addDrink('Trish', 1)" style="background:#ff8da1; color:white">🍷</button>
                 </div>
             </div>
-
-            <button class="nav-link-btn" onclick="nav('analytics')">📊 See History</button>
-        </div>
-
-        <div id="view-analytics" class="hidden">
-            <button class="nav-link-btn" style="margin-top:0; margin-bottom:20px; background:#f9f9f9;" onclick="nav('tracker')">⬅ Back</button>
-
-            <div class="analytics-container">
-                <h3 style="text-align:center; color:var(--text-main); margin-top:0;">History Log</h3>
-                <table class="stats-table">
-                    <thead>
-                        <tr>
-                            <th>Period</th>
-                            <th>🐻 Moe</th>
-                            <th>🐱 Trish</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Today</td>
-                            <td class="val-moe" id="stat-day-moe">0</td>
-                            <td class="val-trish" id="stat-day-trish">0</td>
-                        </tr>
-                        <tr>
-                            <td>7 Days</td>
-                            <td class="val-moe" id="stat-week-moe">0</td>
-                            <td class="val-trish" id="stat-week-trish">0</td>
-                        </tr>
-                        <tr>
-                            <td>30 Days</td>
-                            <td class="val-moe" id="stat-month-moe">0</td>
-                            <td class="val-trish" id="stat-month-trish">0</td>
-                        </tr>
-                        <tr>
-                            <td>All Time</td>
-                            <td class="val-moe" id="stat-all-moe">0</td>
-                            <td class="val-trish" id="stat-all-trish">0</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            
+            <button onclick="window.location.reload()" style="background:#333; margin-top:30px;">Refresh App</button>
         </div>
     </div>
 
-    <nav id="nav" class="hidden">
-        <div class="nav-item active" id="tab-tracker" onclick="nav('tracker')">
-            <span class="nav-icon">📝</span>
-            <span>Tracker</span>
-        </div>
-        <div class="nav-item" id="tab-analytics" onclick="nav('analytics')">
-            <span class="nav-icon">📈</span>
-            <span>History</span>
-        </div>
-    </nav>
+    <script>
+        function log(msg, isError) {
+            const c = document.getElementById('debug-console');
+            if(isError) c.innerHTML += `<span class="error-msg">❌ ${msg}</span><br>`;
+            else c.innerHTML += `✓ ${msg}<br>`;
+        }
+        window.onerror = function(msg, url, line) {
+            log(`ERROR: ${msg} (Line: ${line})`, true);
+        };
+    </script>
 
     <script type="module">
+        log("Loading Firebase...");
+        
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, onValue, push, remove } 
-        from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // Your specific config
         const firebaseConfig = {
           apiKey: "AIzaSyDwjSeEdz3g6ofnvvURIr_Q_q0KII4QtdU",
           authDomain: "drinks-tracker-cb5e5.firebaseapp.com",
@@ -244,148 +94,80 @@
           measurementId: "G-36G1HBRE9K"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        const historyRef = ref(db, 'history'); 
-
-        let allHistory = []; 
-        let currentUser = null;
-
-        // AUTH & BINDING
-        // We bind the click event here to ensure JS is loaded
-        const loginBtn = document.getElementById('btn-login');
-        if(loginBtn) {
-            loginBtn.addEventListener('click', attemptLogin);
-        }
-
-        // Also allow hitting "Enter" in the password box
-        const passInput = document.getElementById('pass-input');
-        if(passInput) {
-            passInput.addEventListener('keypress', function (e) {
-                if (e.key === 'Enter') attemptLogin();
-            });
-        }
-
-        function attemptLogin() {
-            const pass = document.getElementById('pass-input').value;
-            if(pass === 'Moetrin') {
-                localStorage.setItem('auth_token', 'Moetrin');
-                showApp();
-            } else {
-                document.getElementById('login-error').style.display = 'block';
-            }
-        }
-
-        function checkAuth() {
-            if(localStorage.getItem('auth_token') === 'Moetrin') {
-                showApp();
-            }
-        }
-
-        function showApp() {
-            document.getElementById('view-login').classList.add('hidden');
-            const savedUser = localStorage.getItem('drinks_user');
-            if(savedUser) {
-                setProfile(savedUser);
-            } else {
-                document.getElementById('view-profile').classList.remove('hidden');
-                document.getElementById('app-header').innerText = "Select Profile";
-            }
-        }
-
-        // NAVIGATION & UI
-        window.setProfile = function(u) {
-            currentUser = u;
-            localStorage.setItem('drinks_user', u);
-            document.getElementById('view-profile').classList.add('hidden');
-            document.getElementById('view-tracker').classList.remove('hidden');
-            document.getElementById('nav').classList.remove('hidden');
-            document.getElementById('app-header').innerText = "Drink Tracker";
+        try {
+            const app = initializeApp(firebaseConfig);
+            const db = getDatabase(app);
+            const historyRef = ref(db, 'history');
+            log("Firebase Connected!");
             
-            document.querySelectorAll('.user-card').forEach(c => c.classList.remove('active-user'));
-            document.getElementById('card-'+u.toLowerCase()).classList.add('active-user');
-        }
+            // GLOBAL VARIABLES
+            window.allHistory = [];
 
-        window.nav = function(t) {
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            document.getElementById('tab-'+t).classList.add('active');
+            // --- 1. LOGIN LOGIC ---
+            const btn = document.getElementById('btn-login');
             
-            document.getElementById('view-tracker').classList.add('hidden');
-            document.getElementById('view-analytics').classList.add('hidden');
-            document.getElementById('view-'+t).classList.remove('hidden');
-            
-            document.getElementById('app-header').innerText = t === 'analytics' ? "Analytics" : "Drink Tracker";
-        }
-
-        // DATABASE ACTIONS
-        window.addDrink = function(user, amount) {
-            if(amount > 0) {
-                push(historyRef, { user: user, timestamp: Date.now(), value: 1 });
-                showKanpai(user);
-            } else {
-                removeLastDrink(user);
-            }
-        }
-
-        function showKanpai(user) {
-            const card = document.getElementById('card-' + user.toLowerCase());
-            const pop = document.createElement('div');
-            pop.className = 'kanpai-pop';
-            pop.innerText = "🍻 Kanpai!";
-            card.appendChild(pop);
-            setTimeout(() => { pop.remove(); }, 1000);
-        }
-
-        function removeLastDrink(user) {
-            let lastId = null;
-            let lastTime = 0;
-            for (const [id, data] of Object.entries(allHistory)) {
-                if(data.user === user && data.timestamp > lastTime) {
-                    lastTime = data.timestamp;
-                    lastId = id;
+            btn.addEventListener('click', () => {
+                log("Button Clicked!");
+                const pass = document.getElementById('pass-input').value;
+                if(pass === 'Moetrin') {
+                    log("Password Correct");
+                    document.getElementById('view-login').classList.add('hidden');
+                    document.getElementById('view-tracker').classList.remove('hidden');
+                    localStorage.setItem('auth_token', 'Moetrin');
+                } else {
+                    log("Password Wrong: " + pass, true);
+                    alert("Wrong Password");
                 }
-            }
-            if(lastId) remove(ref(db, 'history/' + lastId));
-        }
-
-        // DATA PROCESSING
-        onValue(historyRef, (snapshot) => {
-            const data = snapshot.val();
-            allHistory = data || {};
-            calculateAndRender();
-        });
-
-        function calculateAndRender() {
-            const now = new Date();
-            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-            const startOfWeek = startOfDay - (7 * 24 * 60 * 60 * 1000);
-            const startOfMonth = startOfDay - (30 * 24 * 60 * 60 * 1000);
-
-            let stats = { moe: { day:0, week:0, month:0, all:0 }, trish: { day:0, week:0, month:0, all:0 } };
-
-            Object.values(allHistory).forEach(entry => {
-                if (!entry.user || !entry.timestamp) return;
-                const u = entry.user.toLowerCase();
-                stats[u].all++;
-                if (entry.timestamp >= startOfMonth) stats[u].month++;
-                if (entry.timestamp >= startOfWeek) stats[u].week++;
-                if (entry.timestamp >= startOfDay) stats[u].day++;
             });
 
-            document.getElementById('c-moe').innerText = stats.moe.day;
-            document.getElementById('c-trish').innerText = stats.trish.day;
-            document.getElementById('stat-day-moe').innerText = stats.moe.day;
-            document.getElementById('stat-day-trish').innerText = stats.trish.day;
-            document.getElementById('stat-week-moe').innerText = stats.moe.week;
-            document.getElementById('stat-week-trish').innerText = stats.trish.week;
-            document.getElementById('stat-month-moe').innerText = stats.moe.month;
-            document.getElementById('stat-month-trish').innerText = stats.trish.month;
-            document.getElementById('stat-all-moe').innerText = stats.moe.all;
-            document.getElementById('stat-all-trish').innerText = stats.trish.all;
-        }
+            // Auto-login check
+            if(localStorage.getItem('auth_token') === 'Moetrin') {
+                log("Auto-logging in...");
+                document.getElementById('view-login').classList.add('hidden');
+                document.getElementById('view-tracker').classList.remove('hidden');
+            }
 
-        // Kickoff
-        checkAuth();
+            // --- 2. DATABASE LOGIC ---
+            window.addDrink = function(user, amount) {
+                log(`Modifying ${user}: ${amount}`);
+                if(amount > 0) {
+                    push(historyRef, { user: user, timestamp: Date.now(), value: 1 });
+                } else {
+                    // Simple remove logic
+                    let lastId = null; 
+                    let lastTime = 0;
+                    for (const [id, data] of Object.entries(window.allHistory)) {
+                        if(data.user === user && data.timestamp > lastTime) { lastTime = data.timestamp; lastId = id; }
+                    }
+                    if(lastId) remove(ref(db, 'history/' + lastId));
+                }
+            };
+
+            // --- 3. LISTENER ---
+            onValue(historyRef, (snapshot) => {
+                const data = snapshot.val();
+                window.allHistory = data || {};
+                
+                // Calculate Today
+                const now = new Date();
+                const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                let moe = 0, trish = 0;
+
+                Object.values(window.allHistory).forEach(entry => {
+                    if (entry.timestamp >= startOfDay) {
+                        if(entry.user === 'Moe') moe++;
+                        if(entry.user === 'Trish') trish++;
+                    }
+                });
+                
+                document.getElementById('c-moe').innerText = moe;
+                document.getElementById('c-trish').innerText = trish;
+                log("Data Updated");
+            });
+
+        } catch (e) {
+            log(e.message, true);
+        }
     </script>
 </body>
 </html>
