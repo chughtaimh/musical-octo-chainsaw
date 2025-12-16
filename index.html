@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="M&T Drinks">
@@ -17,33 +17,37 @@
 
     <style>
         :root { --bg: #fdfbf7; --card: #ffffff; --moe: #6ab7ff; --trish: #ff8da1; --text: #544a4a; --shadow: 0 8px 20px rgba(149, 157, 165, 0.15); }
-        body { font-family: 'M PLUS Rounded 1c', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background-image: radial-gradient(#ff8da1 1px, transparent 1px), radial-gradient(#6ab7ff 1px, transparent 1px); background-size: 40px 40px; background-position: 0 0, 20px 20px; }
+        /* Fix: Use 100dvh for better mobile browser support */
+        body { font-family: 'M PLUS Rounded 1c', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; background-image: radial-gradient(#ff8da1 1px, transparent 1px), radial-gradient(#6ab7ff 1px, transparent 1px); background-size: 40px 40px; background-position: 0 0, 20px 20px; }
         
         /* Layout */
-        header { padding: 20px; text-align: center; font-weight: 800; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-bottom: 2px solid #eee; color: var(--trish); font-size: 1.2rem; }
-        #app-content { flex: 1; padding: 25px; overflow-y: auto; display: flex; flex-direction: column; position: relative; }
+        header { padding: 20px; text-align: center; font-weight: 800; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-bottom: 2px solid #eee; color: var(--trish); font-size: 1.2rem; z-index: 10; }
+        #app-content { flex: 1; padding: 25px; overflow-y: auto; display: flex; flex-direction: column; position: relative; -webkit-overflow-scrolling: touch; }
         .hidden { display: none !important; }
 
         /* Login */
         #view-login { display: flex; flex-direction: column; justify-content: center; height: 100%; text-align: center; }
         .login-card { background: white; padding: 30px; border-radius: 25px; box-shadow: var(--shadow); }
-        input { padding: 15px; font-size: 1.2rem; border-radius: 50px; border: 2px solid #eee; background: #f9f9f9; text-align: center; width: 100%; box-sizing: border-box; margin-bottom: 15px; outline: none; }
+        input { padding: 15px; font-size: 1.2rem; border-radius: 50px; border: 2px solid #eee; background: #f9f9f9; text-align: center; width: 100%; box-sizing: border-box; margin-bottom: 15px; outline: none; transition: 0.2s; }
         input:focus { border-color: var(--trish); background: #fff; }
         .btn-main { padding: 15px; background: var(--trish); color: white; border: none; border-radius: 50px; font-size: 1.2rem; font-weight: bold; cursor: pointer; width: 100%; box-shadow: 0 4px 10px rgba(255, 141, 161, 0.4); transition: transform 0.1s; }
         .btn-main:active { transform: scale(0.95); }
 
         /* Cards */
-        .user-card { background: var(--card); border-radius: 30px; padding: 20px; margin-bottom: 25px; text-align: center; border: 3px solid transparent; transition: 0.3s; box-shadow: var(--shadow); position: relative; }
-        .user-card.active-user { border-color: #ffd700; transform: translateY(-5px); }
-        .user-card.active-user::after { content: '⭐'; position: absolute; top: -15px; right: -10px; font-size: 2rem; animation: spin 3s infinite linear; }
+        .user-card { background: var(--card); border-radius: 30px; padding: 20px; margin-bottom: 25px; text-align: center; border: 3px solid transparent; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: var(--shadow); position: relative; }
+        
+        /* Fix: Made the active state slightly more visible */
+        .user-card.active-user { border-color: #ffd700; transform: translateY(-5px); box-shadow: 0 15px 30px rgba(255, 215, 0, 0.3); }
+        .user-card.active-user::after { content: '⭐'; position: absolute; top: -15px; right: -10px; font-size: 2.5rem; animation: spin 3s infinite linear; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+        
         .avatar { font-size: 3rem; display: block; margin-bottom: 5px; }
         .user-name { font-size: 1.1rem; font-weight: 800; text-transform: uppercase; color: #888; }
-        .count { font-size: 5rem; font-weight: 800; line-height: 1; margin: 10px 0; color: var(--text); text-shadow: 2px 2px 0px #eee; }
+        .count { font-size: 5rem; font-weight: 800; line-height: 1; margin: 10px 0; color: var(--text); text-shadow: 2px 2px 0px #eee; font-variant-numeric: tabular-nums; }
         .moe .user-name { color: var(--moe); } .trish .user-name { color: var(--trish); }
 
         /* Controls */
         .controls { display: flex; justify-content: center; gap: 25px; margin-top: 15px; }
-        .btn-round { width: 70px; height: 70px; border-radius: 25px; border: none; font-size: 2.5rem; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 5px 0 rgba(0,0,0,0.1); transition: transform 0.1s; background: #f0f0f0; color: #888; }
+        .btn-round { width: 70px; height: 70px; border-radius: 25px; border: none; font-size: 2.5rem; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 5px 0 rgba(0,0,0,0.1); transition: transform 0.1s; background: #f0f0f0; color: #888; touch-action: manipulation; }
         .btn-round:active { transform: translateY(4px); box-shadow: none; }
         .moe .plus { background: var(--moe); color: white; box-shadow: 0 5px 0 #4a90e2; }
         .trish .plus { background: var(--trish); color: white; box-shadow: 0 5px 0 #e06c80; }
@@ -56,13 +60,14 @@
         .val-moe { color: var(--moe); } .val-trish { color: var(--trish); }
 
         /* Bottom Nav */
-        nav { background: white; border-top: 2px solid #eee; display: flex; padding-bottom: env(safe-area-inset-bottom); height: 80px; box-shadow: 0 -5px 20px rgba(0,0,0,0.02); }
-        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ccc; font-size: 0.8rem; font-weight: 800; gap: 5px; transition: 0.2s; cursor: pointer; }
+        /* Fix: Added padding-bottom for iPhone Home Bar and changed ID to main-nav */
+        #main-nav { background: white; border-top: 2px solid #eee; display: flex; padding-bottom: env(safe-area-inset-bottom); height: 80px; box-shadow: 0 -5px 20px rgba(0,0,0,0.02); z-index: 10; }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ccc; font-size: 0.8rem; font-weight: 800; gap: 5px; transition: 0.2s; cursor: pointer; -webkit-tap-highlight-color: transparent; }
         .nav-item.active { color: var(--trish); transform: scale(1.1); }
         .nav-icon { font-size: 1.5rem; }
 
         @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(0.5); } 100% { opacity: 0; transform: translateY(-50px) scale(1.5); } }
-        .kanpai-pop { position: absolute; font-weight: 900; color: #ffbf00; font-size: 2rem; pointer-events: none; animation: floatUp 1s ease-out forwards; z-index: 99; text-shadow: 2px 2px 0 #fff; width: 100%; text-align: center; left: 0; }
+        .kanpai-pop { position: absolute; font-weight: 900; color: #ffbf00; font-size: 2rem; pointer-events: none; animation: floatUp 0.8s ease-out forwards; z-index: 99; text-shadow: 2px 2px 0 #fff; width: 100%; text-align: center; left: 0; top: 20px; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -81,6 +86,7 @@
 
         <div id="view-tracker" class="hidden">
             <div style="text-align:center; margin-bottom:20px; color:#aaa; font-weight:bold;">TODAY'S SCORE</div>
+            
             <div class="user-card moe" id="card-moe">
                 <div class="avatar">🐻</div>
                 <div class="user-name">Moe</div>
@@ -90,6 +96,7 @@
                     <button class="btn-round plus" onclick="addDrink('Moe', 1)">🍺</button>
                 </div>
             </div>
+
             <div class="user-card trish" id="card-trish">
                 <div class="avatar">🐱</div>
                 <div class="user-name">Trish</div>
@@ -118,11 +125,11 @@
         </div>
     </div>
 
-    <nav id="nav" class="hidden">
-        <div class="nav-item active" id="tab-tracker" onclick="nav('tracker')">
+    <nav id="main-nav" class="hidden">
+        <div class="nav-item active" id="tab-tracker" onclick="switchTab('tracker')">
             <span class="nav-icon">📝</span><span>Tracker</span>
         </div>
-        <div class="nav-item" id="tab-analytics" onclick="nav('analytics')">
+        <div class="nav-item" id="tab-analytics" onclick="switchTab('analytics')">
             <span class="nav-icon">📊</span><span>History</span>
         </div>
     </nav>
@@ -157,6 +164,7 @@
                 startApp();
             } else {
                 alert("Wrong Password");
+                passInput.value = '';
             }
         }
         
@@ -167,12 +175,13 @@
 
         function startApp() {
             document.getElementById('view-login').classList.add('hidden');
-            document.getElementById('nav').classList.remove('hidden');
-            nav('tracker');
+            document.getElementById('main-nav').classList.remove('hidden');
+            switchTab('tracker');
         }
 
         // --- NAV ---
-        window.nav = function(tab) {
+        // Fix: Renamed to switchTab to avoid conflict with id="nav"
+        window.switchTab = function(tab) {
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             document.getElementById('tab-'+tab).classList.add('active');
             
@@ -185,21 +194,39 @@
 
         // --- DB LOGIC ---
         window.addDrink = function(user, amount) {
+            const card = document.getElementById('card-' + user.toLowerCase());
+            
             if(amount > 0) {
                 push(historyRef, { user: user, timestamp: Date.now(), value: 1 });
-                const card = document.getElementById('card-' + user.toLowerCase());
+                
+                // Animation
                 const pop = document.createElement('div');
                 pop.className = 'kanpai-pop';
                 pop.innerText = "🍻 Kanpai!";
                 card.appendChild(pop);
-                setTimeout(() => { pop.remove(); }, 1000);
+                setTimeout(() => { pop.remove(); }, 800);
             } else {
+                // Remove last drink logic
                 let lastId = null; 
                 let lastTime = 0;
+                
+                // Safety check if history exists
+                if (!allHistory) return;
+
                 for (const [id, data] of Object.entries(allHistory)) {
-                    if(data.user === user && data.timestamp > lastTime) { lastTime = data.timestamp; lastId = id; }
+                    if(data.user === user && data.timestamp > lastTime) { 
+                        lastTime = data.timestamp; 
+                        lastId = id; 
+                    }
                 }
-                if(lastId) remove(ref(db, 'history/' + lastId));
+                
+                if(lastId) {
+                    remove(ref(db, 'history/' + lastId));
+                    // Visual feedback for removal
+                    card.style.transform = "translateX(5px)";
+                    setTimeout(() => card.style.transform = "translateX(-5px)", 50);
+                    setTimeout(() => card.style.transform = "none", 100);
+                }
             }
         };
 
@@ -211,7 +238,10 @@
 
         function calculate() {
             const now = new Date();
-            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            // Start of day set to 00:00:00 local time
+            now.setHours(0,0,0,0);
+            const startOfDay = now.getTime();
+            
             const startOfWeek = startOfDay - (7 * 24 * 60 * 60 * 1000);
             const startOfMonth = startOfDay - (30 * 24 * 60 * 60 * 1000);
 
@@ -219,7 +249,8 @@
 
             Object.values(allHistory).forEach(entry => {
                 const u = entry.user ? entry.user.toLowerCase() : null;
-                if(!u) return;
+                // Simple validation to ensure user matches
+                if(!u || !stats[u]) return;
                 
                 stats[u].all++;
                 if (entry.timestamp >= startOfMonth) stats[u].month++;
@@ -227,16 +258,37 @@
                 if (entry.timestamp >= startOfDay) stats[u].day++;
             });
 
+            // Update UI
             document.getElementById('c-moe').innerText = stats.moe.day;
             document.getElementById('c-trish').innerText = stats.trish.day;
-            document.getElementById('stat-day-moe').innerText = stats.moe.day;
-            document.getElementById('stat-day-trish').innerText = stats.trish.day;
-            document.getElementById('stat-week-moe').innerText = stats.moe.week;
-            document.getElementById('stat-week-trish').innerText = stats.trish.week;
-            document.getElementById('stat-month-moe').innerText = stats.moe.month;
-            document.getElementById('stat-month-trish').innerText = stats.trish.month;
-            document.getElementById('stat-all-moe').innerText = stats.moe.all;
-            document.getElementById('stat-all-trish').innerText = stats.trish.all;
+            
+            // Analytics Table
+            const updateStat = (id, val) => {
+                const el = document.getElementById(id);
+                if(el) el.innerText = val;
+            };
+
+            updateStat('stat-day-moe', stats.moe.day);
+            updateStat('stat-day-trish', stats.trish.day);
+            updateStat('stat-week-moe', stats.moe.week);
+            updateStat('stat-week-trish', stats.trish.week);
+            updateStat('stat-month-moe', stats.moe.month);
+            updateStat('stat-month-trish', stats.trish.month);
+            updateStat('stat-all-moe', stats.moe.all);
+            updateStat('stat-all-trish', stats.trish.all);
+
+            // --- WINNER LOGIC ---
+            // Remove active class from both first
+            document.getElementById('card-moe').classList.remove('active-user');
+            document.getElementById('card-trish').classList.remove('active-user');
+
+            if (stats.moe.day > 0 || stats.trish.day > 0) {
+                if (stats.moe.day > stats.trish.day) {
+                    document.getElementById('card-moe').classList.add('active-user');
+                } else if (stats.trish.day > stats.moe.day) {
+                    document.getElementById('card-trish').classList.add('active-user');
+                }
+            }
         }
     </script>
 </body>
