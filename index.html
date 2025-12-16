@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#121212">
+    <title>Drink Tracker</title>
+    <style>
+        :root { --bg: #121212; --card: #1e1e1e; --moe: #4facfe; --trish: #ff5858; --text: #fff; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* Layout */
+        header { padding: 20px; text-align: center; font-weight: 800; border-bottom: 1px solid #333; }
+        #app-content { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
+        
+        /* Profile Select */
+        .profile-btn { background: var(--card); border: 2px solid #333; padding: 25px; margin: 10px 0; border-radius: 12px; font-size: 1.5rem; text-align: center; font-weight: bold; cursor: pointer; }
+        .profile-btn.moe:active { border-color: var(--moe); color: var(--moe); }
+        .profile-btn.trish:active { border-color: var(--trish); color: var(--trish); }
+        
+        /* Cards */
+        .user-card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center; border: 1px solid transparent; transition: 0.3s; }
+        .user-card.active-user { border-color: #555; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        .user-name { font-size: 1rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 5px; text-transform: uppercase; }
+        .count { font-size: 4.5rem; font-weight: 800; line-height: 1; margin: 10px 0; }
+        
+        /* Controls */
+        .controls { display: flex; justify-content: center; gap: 20px; }
+        .btn { width: 60px; height: 60px; border-radius: 50%; border: none; font-size: 2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; }
+        .minus { background: #2a2a2a; color: #fff; }
+        .moe .user-name { color: var(--moe); } .moe .plus { background: var(--moe); color: #fff; }
+        .trish .user-name { color: var(--trish); } .trish .plus { background: var(--trish); color: #fff; }
+
+        /* Tabs */
+        .chart-box { display: flex; justify-content: space-around; align-items: flex-end; height: 250px; padding-top: 40px; }
+        .bar { width: 50px; border-radius: 8px 8px 0 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-weight: bold; min-height: 10px; transition: height 0.5s; }
+        .action-btn { width: 100%; padding: 15px; border-radius: 8px; font-size: 1rem; margin-top: 15px; font-weight: bold; cursor: pointer; border: none;}
+        .share-btn { background: #333; color: white; margin-top: auto; }
+        .reset-btn { background: #2a0000; color: #ff5858; border: 1px solid #ff5858; margin-top: 20px;}
+
+        nav { background: #1a1a1a; border-top: 1px solid #333; display: flex; padding-bottom: env(safe-area-inset-bottom); }
+        .nav-item { padding: 15px; flex: 1; text-align: center; color: #666; font-size: 0.9rem; }
+        .nav-item.active { color: #fff; font-weight: bold; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <header id="title">Who is this?</header>
+
+    <div id="app-content">
+        <div id="view-profile" style="margin-top: auto; margin-bottom: auto;">
+            <div class="profile-btn moe" onclick="setProfile('Moe')">Moe</div>
+            <div class="profile-btn trish" onclick="setProfile('Trish')">Trish</div>
+        </div>
+
+        <div id="view-tracker" class="hidden">
+            <div class="user-card moe" id="card-moe">
+                <div class="user-name">Moe</div>
+                <div class="count" id="c-moe">0</div>
+                <div class="controls">
+                    <button class="btn minus" onclick="mod('moe', -1)">-</button>
+                    <button class="btn plus" onclick="mod('moe', 1)">+</button>
+                </div>
+            </div>
+            <div class="user-card trish" id="card-trish">
+                <div class="user-name">Trish</div>
+                <div class="count" id="c-trish">0</div>
+                <div class="controls">
+                    <button class="btn minus" onclick="mod('trish', -1)">-</button>
+                    <button class="btn plus" onclick="mod('trish', 1)">+</button>
+                </div>
+            </div>
+            <button class="action-btn share-btn" onclick="share()">📤 Share Status via Text</button>
+        </div>
+
+        <div id="view-analytics" class="hidden">
+            <div class="chart-box">
+                <div style="text-align:center"><div class="bar" id="b-moe" style="background:var(--moe)">0</div><br>Moe</div>
+                <div style="text-align:center"><div class="bar" id="b-trish" style="background:var(--trish)">0</div><br>Trish</div>
+            </div>
+            <button class="action-btn reset-btn" onclick="reset()">Reset All</button>
+        </div>
+    </div>
+
+    <nav id="nav" class="hidden">
+        <div class="nav-item active" id="tab-tracker" onclick="nav('tracker')">Tracker</div>
+        <div class="nav-item" id="tab-analytics" onclick="nav('analytics')">Analytics</div>
+    </nav>
+
+    <script>
+        let d = { moe: 0, trish: 0 }, user = null;
+        function load() {
+            let saved = localStorage.getItem('drinks_data');
+            if (saved) d = JSON.parse(saved);
+            let savedUser = localStorage.getItem('drinks_user');
+            if (savedUser) setProfile(savedUser);
+            render();
+        }
+        function setProfile(u) {
+            user = u;
+            localStorage.setItem('drinks_user', u);
+            document.getElementById('view-profile').classList.add('hidden');
+            document.getElementById('view-tracker').classList.remove('hidden');
+            document.getElementById('nav').classList.remove('hidden');
+            document.getElementById('title').innerText = "Drink Tracker";
+            document.querySelectorAll('.user-card').forEach(c => c.classList.remove('active-user'));
+            if(u) document.getElementById('card-'+u.toLowerCase()).classList.add('active-user');
+        }
+        function mod(u, n) {
+            d[u] += n;
+            if(d[u] < 0) d[u] = 0;
+            save(); render();
+        }
+        function save() { localStorage.setItem('drinks_data', JSON.stringify(d)); }
+        function render() {
+            document.getElementById('c-moe').innerText = d.moe;
+            document.getElementById('c-trish').innerText = d.trish;
+            let max = Math.max(d.moe, d.trish, 5);
+            document.getElementById('b-moe').style.height = (d.moe/max*200)+'px';
+            document.getElementById('b-moe').innerText = d.moe;
+            document.getElementById('b-trish').style.height = (d.trish/max*200)+'px';
+            document.getElementById('b-trish').innerText = d.trish;
+        }
+        function nav(t) {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.getElementById('tab-'+t).classList.add('active');
+            document.getElementById('view-tracker').classList.add('hidden');
+            document.getElementById('view-analytics').classList.add('hidden');
+            document.getElementById('view-'+t).classList.remove('hidden');
+            document.getElementById('title').innerText = t === 'analytics' ? "Analytics" : "Drink Tracker";
+        }
+        function reset() {
+            if(confirm("Clear all drinks?")) { d.moe=0; d.trish=0; save(); render(); nav('tracker'); }
+        }
+        function share() {
+            let txt = `Status Update:\nMoe: ${d.moe}\nTrish: ${d.trish}`;
+            window.open('sms:&body='+encodeURIComponent(txt));
+        }
+        load();
+    </script>
+</body>
+</html>
