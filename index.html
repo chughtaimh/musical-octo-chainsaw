@@ -5,79 +5,127 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Drink Tracker</title>
+    <title>Moe & Trish Tracker</title>
     <style>
         :root { --bg: #121212; --card: #1e1e1e; --moe: #4facfe; --trish: #ff5858; --text: #fff; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        /* Layout */
-        header { padding: 20px; text-align: center; font-weight: 800; border-bottom: 1px solid #333; }
+        /* General Layout */
+        header { padding: 20px; text-align: center; font-weight: 800; border-bottom: 1px solid #333; letter-spacing: 1px; }
         #app-content { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
-        
-        /* Profile Buttons */
-        .profile-btn { background: var(--card); border: 2px solid #333; padding: 25px; margin: 10px 0; border-radius: 12px; font-size: 1.5rem; text-align: center; font-weight: bold; cursor: pointer; }
+        .hidden { display: none !important; }
+
+        /* Login Screen */
+        #view-login { display: flex; flex-direction: column; justify-content: center; height: 100%; text-align: center; }
+        input[type="password"] { padding: 15px; font-size: 1.2rem; border-radius: 8px; border: 1px solid #333; background: #222; color: white; margin-bottom: 15px; text-align: center; width: 80%; align-self: center;}
+        .login-btn { padding: 15px; background: #333; color: white; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; width: 80%; align-self: center;}
+
+        /* Profile Select */
+        .profile-btn { background: var(--card); border: 2px solid #333; padding: 25px; margin: 10px 0; border-radius: 12px; font-size: 1.5rem; text-align: center; font-weight: bold; cursor: pointer; transition: 0.2s;}
         .profile-btn.moe:active { border-color: var(--moe); color: var(--moe); }
         .profile-btn.trish:active { border-color: var(--trish); color: var(--trish); }
-        
+
         /* Tracker Cards */
-        .user-card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center; border: 1px solid transparent; transition: 0.3s; }
+        .user-card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 20px; text-align: center; border: 1px solid transparent; position: relative;}
         .user-card.active-user { border-color: #555; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-        .user-name { font-size: 1rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 5px; text-transform: uppercase; }
+        .user-name { font-size: 1rem; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
         .count { font-size: 4.5rem; font-weight: 800; line-height: 1; margin: 10px 0; }
+        .sub-text { font-size: 0.8rem; color: #666; margin-bottom: 10px; }
         
-        /* Buttons */
+        /* Controls */
         .controls { display: flex; justify-content: center; gap: 20px; }
         .btn { width: 60px; height: 60px; border-radius: 50%; border: none; font-size: 2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; }
         .minus { background: #2a2a2a; color: #fff; }
         .moe .user-name { color: var(--moe); } .moe .plus { background: var(--moe); color: #fff; }
         .trish .user-name { color: var(--trish); } .trish .plus { background: var(--trish); color: #fff; }
 
-        /* Analytics */
-        .chart-box { display: flex; justify-content: space-around; align-items: flex-end; height: 250px; padding-top: 40px; }
-        .bar { width: 50px; border-radius: 8px 8px 0 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-weight: bold; min-height: 10px; transition: height 0.5s; }
-        .reset-btn { width: 100%; padding: 15px; border-radius: 8px; font-size: 1rem; margin-top: 40px; font-weight: bold; cursor: pointer; border: 1px solid #ff5858; background: #2a0000; color: #ff5858;}
+        /* Analytics Table */
+        .stats-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .stats-table th { text-align: left; color: #888; padding: 10px; border-bottom: 1px solid #333; font-size: 0.8rem; text-transform: uppercase;}
+        .stats-table td { padding: 15px 10px; border-bottom: 1px solid #222; font-size: 1.1rem; }
+        .val-moe { color: var(--moe); font-weight: bold; }
+        .val-trish { color: var(--trish); font-weight: bold; }
 
         /* Nav */
         nav { background: #1a1a1a; border-top: 1px solid #333; display: flex; padding-bottom: env(safe-area-inset-bottom); }
         .nav-item { padding: 15px; flex: 1; text-align: center; color: #666; font-size: 0.9rem; }
         .nav-item.active { color: #fff; font-weight: bold; }
-        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <header id="title">Who is this?</header>
+    <header id="app-header">Locked</header>
 
     <div id="app-content">
-        <div id="view-profile" style="margin-top: auto; margin-bottom: auto;">
+        <div id="view-login">
+            <h2 style="margin-bottom:30px;">Enter Password</h2>
+            <input type="password" id="pass-input" placeholder="Password">
+            <button class="login-btn" onclick="attemptLogin()">Unlock</button>
+            <p id="login-error" style="color:red; margin-top:10px; display:none;">Wrong Password</p>
+        </div>
+
+        <div id="view-profile" class="hidden" style="margin-top: auto; margin-bottom: auto;">
             <div class="profile-btn moe" onclick="setProfile('Moe')">Moe</div>
             <div class="profile-btn trish" onclick="setProfile('Trish')">Trish</div>
         </div>
 
         <div id="view-tracker" class="hidden">
+            <div style="text-align:center; margin-bottom:20px; color:#888;">TODAY'S COUNT</div>
+            
             <div class="user-card moe" id="card-moe">
                 <div class="user-name">Moe</div>
-                <div class="count" id="c-moe">...</div>
+                <div class="count" id="c-moe">0</div>
                 <div class="controls">
-                    <button class="btn minus" onclick="mod('moe', -1)">-</button>
-                    <button class="btn plus" onclick="mod('moe', 1)">+</button>
+                    <button class="btn minus" onclick="addDrink('Moe', -1)">-</button>
+                    <button class="btn plus" onclick="addDrink('Moe', 1)">+</button>
                 </div>
             </div>
+
             <div class="user-card trish" id="card-trish">
                 <div class="user-name">Trish</div>
-                <div class="count" id="c-trish">...</div>
+                <div class="count" id="c-trish">0</div>
                 <div class="controls">
-                    <button class="btn minus" onclick="mod('trish', -1)">-</button>
-                    <button class="btn plus" onclick="mod('trish', 1)">+</button>
+                    <button class="btn minus" onclick="addDrink('Trish', -1)">-</button>
+                    <button class="btn plus" onclick="addDrink('Trish', 1)">+</button>
                 </div>
             </div>
         </div>
 
         <div id="view-analytics" class="hidden">
-            <div class="chart-box">
-                <div style="text-align:center"><div class="bar" id="b-moe" style="background:var(--moe)">0</div><br>Moe</div>
-                <div style="text-align:center"><div class="bar" id="b-trish" style="background:var(--trish)">0</div><br>Trish</div>
+            <h3 style="text-align:center; color:#fff;">History</h3>
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <th>Period</th>
+                        <th>Moe</th>
+                        <th>Trish</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Today</td>
+                        <td class="val-moe" id="stat-day-moe">0</td>
+                        <td class="val-trish" id="stat-day-trish">0</td>
+                    </tr>
+                    <tr>
+                        <td>Last 7 Days</td>
+                        <td class="val-moe" id="stat-week-moe">0</td>
+                        <td class="val-trish" id="stat-week-trish">0</td>
+                    </tr>
+                    <tr>
+                        <td>Last 30 Days</td>
+                        <td class="val-moe" id="stat-month-moe">0</td>
+                        <td class="val-trish" id="stat-month-trish">0</td>
+                    </tr>
+                    <tr>
+                        <td>All Time</td>
+                        <td class="val-moe" id="stat-all-moe">0</td>
+                        <td class="val-trish" id="stat-all-trish">0</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="text-align:center; margin-top:40px; color:#555; font-size:0.8rem;">
+                * Data is based on your local timezone.
             </div>
-            <button class="reset-btn" onclick="reset()">Reset All (Both Users)</button>
         </div>
     </div>
 
@@ -88,10 +136,10 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, onValue, set, runTransaction } 
+        import { getDatabase, ref, onValue, push, remove } 
         from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // YOUR FIREBASE CONFIG
+        // CONFIG
         const firebaseConfig = {
           apiKey: "AIzaSyDwjSeEdz3g6ofnvvURIr_Q_q0KII4QtdU",
           authDomain: "drinks-tracker-cb5e5.firebaseapp.com",
@@ -103,59 +151,57 @@
           measurementId: "G-36G1HBRE9K"
         };
 
-        // Initialize
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        const drinksRef = ref(db, 'drinks'); // Points to the root of your DB
+        const historyRef = ref(db, 'history'); // We now store a history log, not just a counter
 
-        // Global Data Holder
-        window.d = { moe: 0, trish: 0 };
-        
-        // 1. REAL-TIME LISTENER (Reads changes instantly)
-        onValue(drinksRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                window.d = data;
-                render();
+        // STATE
+        let allHistory = []; // Stores all drink events
+        let currentUser = null;
+
+        // --- 1. AUTHENTICATION ---
+        window.attemptLogin = function() {
+            const pass = document.getElementById('pass-input').value;
+            if(pass === 'Moetrin') {
+                localStorage.setItem('auth_token', 'Moetrin');
+                showApp();
             } else {
-                // If DB is brand new/empty, initialize it
-                set(drinksRef, { moe: 0, trish: 0 });
+                document.getElementById('login-error').style.display = 'block';
             }
-        });
+        }
 
-        // 2. WRITE FUNCTION (Updates Firebase)
-        window.mod = function(user, amount) {
-            // Uses transaction to safely handle simultaneous clicks
-            runTransaction(ref(db, 'drinks/' + user), (currentCounts) => {
-                let newVal = (currentCounts || 0) + amount;
-                return newVal < 0 ? 0 : newVal;
-            });
-        };
-
-        window.reset = function() {
-            if(confirm("Are you sure? This resets counts for BOTH of you.")) {
-                set(drinksRef, { moe: 0, trish: 0 });
-                nav('tracker');
+        function checkAuth() {
+            if(localStorage.getItem('auth_token') === 'Moetrin') {
+                showApp();
             }
-        };
+        }
 
-        // --- UI LOGIC ---
-        
+        function showApp() {
+            document.getElementById('view-login').classList.add('hidden');
+            const savedUser = localStorage.getItem('drinks_user');
+            if(savedUser) {
+                setProfile(savedUser);
+            } else {
+                document.getElementById('view-profile').classList.remove('hidden');
+                document.getElementById('app-header').innerText = "Who are you?";
+            }
+        }
+
+        // --- 2. CORE LOGIC ---
         window.setProfile = function(u) {
+            currentUser = u;
             localStorage.setItem('drinks_user', u);
-            // Hide profile select, show app
             document.getElementById('view-profile').classList.add('hidden');
             document.getElementById('view-tracker').classList.remove('hidden');
             document.getElementById('nav').classList.remove('hidden');
-            document.getElementById('title').innerText = "Drink Tracker";
+            document.getElementById('app-header').innerText = "Drink Tracker";
             
-            // Highlight active user card
+            // Highlight Card
             document.querySelectorAll('.user-card').forEach(c => c.classList.remove('active-user'));
-            if(u) document.getElementById('card-'+u.toLowerCase()).classList.add('active-user');
-        };
+            document.getElementById('card-'+u.toLowerCase()).classList.add('active-user');
+        }
 
         window.nav = function(t) {
-            // Switch Tabs
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             document.getElementById('tab-'+t).classList.add('active');
             
@@ -163,26 +209,101 @@
             document.getElementById('view-analytics').classList.add('hidden');
             document.getElementById('view-'+t).classList.remove('hidden');
             
-            document.getElementById('title').innerText = t === 'analytics' ? "Analytics" : "Drink Tracker";
-            render(); 
-        };
-
-        function render() {
-            // Update Numbers
-            document.getElementById('c-moe').innerText = window.d.moe;
-            document.getElementById('c-trish').innerText = window.d.trish;
-            
-            // Update Chart
-            let max = Math.max(window.d.moe, window.d.trish, 5);
-            document.getElementById('b-moe').style.height = (window.d.moe/max*200)+'px';
-            document.getElementById('b-moe').innerText = window.d.moe;
-            document.getElementById('b-trish').style.height = (window.d.trish/max*200)+'px';
-            document.getElementById('b-trish').innerText = window.d.trish;
+            document.getElementById('app-header').innerText = t === 'analytics' ? "Analytics" : "Drink Tracker";
         }
 
-        // Auto-login if profile was chosen previously
-        const savedUser = localStorage.getItem('drinks_user');
-        if (savedUser) window.setProfile(savedUser);
+        // --- 3. DATABASE ACTIONS ---
+        
+        // ADD DRINK: We push a new entry with a timestamp
+        window.addDrink = function(user, amount) {
+            if(amount > 0) {
+                push(historyRef, {
+                    user: user,
+                    timestamp: Date.now(),
+                    value: 1
+                });
+            } else {
+                // REMOVE DRINK: We have to find the most recent entry for today and delete it
+                // This is a bit tricky with logs, but for simplicity, we'll find the last entry for this user
+                // and remove it if it was recent.
+                removeLastDrink(user);
+            }
+        }
+
+        function removeLastDrink(user) {
+            // Find last entry for this user
+            let lastId = null;
+            let lastTime = 0;
+            
+            // Iterate backwards (sort of)
+            for (const [id, data] of Object.entries(allHistory)) {
+                if(data.user === user && data.timestamp > lastTime) {
+                    lastTime = data.timestamp;
+                    lastId = id;
+                }
+            }
+
+            if(lastId) {
+                // Remove that specific entry from Firebase
+                remove(ref(db, 'history/' + lastId));
+            }
+        }
+
+        // --- 4. DATA PROCESSING & RENDER ---
+        
+        // Listen to Firebase
+        onValue(historyRef, (snapshot) => {
+            const data = snapshot.val();
+            allHistory = data || {};
+            calculateAndRender();
+        });
+
+        function calculateAndRender() {
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const startOfWeek = startOfDay - (7 * 24 * 60 * 60 * 1000);
+            const startOfMonth = startOfDay - (30 * 24 * 60 * 60 * 1000);
+
+            let stats = {
+                moe: { day: 0, week: 0, month: 0, all: 0 },
+                trish: { day: 0, week: 0, month: 0, all: 0 }
+            };
+
+            // Process every drink entry
+            Object.values(allHistory).forEach(entry => {
+                if (!entry.user || !entry.timestamp) return;
+                const u = entry.user.toLowerCase(); // 'moe' or 'trish'
+                
+                // All Time
+                stats[u].all++;
+
+                // Time Filters
+                if (entry.timestamp >= startOfMonth) stats[u].month++;
+                if (entry.timestamp >= startOfWeek) stats[u].week++;
+                if (entry.timestamp >= startOfDay) stats[u].day++;
+            });
+
+            // Update Tracker View (Today Only)
+            document.getElementById('c-moe').innerText = stats.moe.day;
+            document.getElementById('c-trish').innerText = stats.trish.day;
+
+            // Update Analytics View
+            document.getElementById('stat-day-moe').innerText = stats.moe.day;
+            document.getElementById('stat-day-trish').innerText = stats.trish.day;
+            
+            document.getElementById('stat-week-moe').innerText = stats.moe.week;
+            document.getElementById('stat-week-trish').innerText = stats.trish.week;
+            
+            document.getElementById('stat-month-moe').innerText = stats.moe.month;
+            document.getElementById('stat-month-trish').innerText = stats.trish.month;
+            
+            document.getElementById('stat-all-moe').innerText = stats.moe.all;
+            document.getElementById('stat-all-trish').innerText = stats.trish.all;
+        }
+
+        // Boot
+        checkAuth();
+
     </script>
 </body>
 </html>
