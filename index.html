@@ -12,6 +12,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet" />
 
+  <!-- Chart.js CDN (required) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23fdfbf7' rx='22'/%3E%3Crect x='15' y='35' width='25' height='35' rx='4' fill='%236ab7ff' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M40 40 C 50 40, 50 60, 40 60' fill='none' stroke='%23544a4a' stroke-width='3'/%3E%3Crect x='15' y='35' width='25' height='10' rx='2' fill='white' opacity='0.5'/%3E%3Cpath d='M60 35 Q 60 60 75 60 Q 90 60 90 35 Z' fill='%23ff8da1' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='75' y1='60' x2='75' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='65' y1='80' x2='85' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M50 20 L52 25 L57 27 L52 29 L50 34 L48 29 L43 27 L48 25 Z' fill='%23ffd700'/%3E%3C/svg%3E" />
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23fdfbf7' rx='22'/%3E%3Crect x='15' y='35' width='25' height='35' rx='4' fill='%236ab7ff' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M40 40 C 50 40, 50 60, 40 60' fill='none' stroke='%23544a4a' stroke-width='3'/%3E%3Crect x='15' y='35' width='25' height='10' rx='2' fill='white' opacity='0.5'/%3E%3Cpath d='M60 35 Q 60 60 75 60 Q 90 60 90 35 Z' fill='%23ff8da1' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='75' y1='60' x2='75' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='65' y1='80' x2='85' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M50 20 L52 25 L57 27 L52 29 L50 34 L48 29 L43 27 L48 25 Z' fill='%23ffd700'/%3E%3C/svg%3E" />
 
@@ -183,6 +186,7 @@
       box-shadow: 0 4px 10px rgba(255, 141, 161, 0.35);
       flex: 0 0 auto;
     }
+
     #query-results {
       margin-top: 14px;
       background: #f9f9f9;
@@ -198,6 +202,22 @@
     #query-results.good { border-color: rgba(106, 183, 255, 0.35); }
     #query-results.bad { border-color: rgba(255, 141, 161, 0.45); }
     #query-results small { display: block; margin-top: 8px; font-weight: 700; color: #888; }
+
+    /* Chart container inside query results */
+    #query-chart-wrap {
+      margin-top: 12px;
+      height: 270px;
+      max-height: 290px;
+      background: rgba(255,255,255,0.55);
+      border-radius: 16px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #query-chart {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
 
     #main-nav {
       background: white;
@@ -303,7 +323,14 @@
           <input type="text" id="query-input" placeholder="Ask a question... (ex: Who had more drinks last week? Moe 12/1-12/15? Weekends last month?)" />
           <button id="query-submit" class="btn-main btn-query">Ask</button>
         </div>
-        <div id="query-results"></div>
+
+        <!-- Prepared to hold both text + canvas (required) -->
+        <div id="query-results">
+          <div id="query-text"></div>
+          <div id="query-chart-wrap" class="hidden">
+            <canvas id="query-chart"></canvas>
+          </div>
+        </div>
       </div>
 
       <div style="text-align:center; margin-top:40px; color:#aaa; font-size:0.8rem;">Ganbatte! (Do your best!)</div>
@@ -358,7 +385,10 @@
 
       queryInput: document.getElementById("query-input"),
       querySubmit: document.getElementById("query-submit"),
-      queryResults: document.getElementById("query-results")
+      queryResults: document.getElementById("query-results"),
+      queryText: document.getElementById("query-text"),
+      queryChartWrap: document.getElementById("query-chart-wrap"),
+      queryChartCanvas: document.getElementById("query-chart")
     };
 
     let allHistory = {};
@@ -398,6 +428,15 @@
       eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20
     };
 
+    function cssVar(name, fallback = "") {
+      try {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return v || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
     function monthNameFromIndex(idx) {
       const names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
       return names[idx] || "";
@@ -408,10 +447,10 @@
     }
 
     function setQueryResult(html, ok) {
-      if (!el.queryResults) return;
+      if (!el.queryResults || !el.queryText) return;
       el.queryResults.classList.remove("good", "bad");
       el.queryResults.classList.add(ok ? "good" : "bad");
-      el.queryResults.innerHTML = html;
+      el.queryText.innerHTML = html;
     }
 
     function normalizeQuery(q) {
@@ -672,24 +711,13 @@
       }
 
       // ISO tokens
-      for (const match of qLower.matchAll(/\b(19\d{2}|20\d{2})-(\d{1,2})-(\d{1,2})\b/g)) {
-        addToken(match[0], match.index ?? 0);
-      }
-
+      for (const match of qLower.matchAll(/\b(19\d{2}|20\d{2})-(\d{1,2})-(\d{1,2})\b/g)) addToken(match[0], match.index ?? 0);
       // Slash tokens
-      for (const match of qLower.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g)) {
-        addToken(match[0], match.index ?? 0);
-      }
-
+      for (const match of qLower.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g)) addToken(match[0], match.index ?? 0);
       // Month name + day tokens
-      for (const match of qLower.matchAll(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?\b/g)) {
-        addToken(match[0], match.index ?? 0);
-      }
-
+      for (const match of qLower.matchAll(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?\b/g)) addToken(match[0], match.index ?? 0);
       // Day + month name tokens
-      for (const match of qLower.matchAll(/\b(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?\b/g)) {
-        addToken(match[0], match.index ?? 0);
-      }
+      for (const match of qLower.matchAll(/\b(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?\b/g)) addToken(match[0], match.index ?? 0);
 
       // De-dupe by index
       const seen = new Set();
@@ -707,7 +735,6 @@
     function parseMonthRange(qLower, now) {
       // Avoid false positives for "may" unless context is clear.
       let monthIdx = null;
-      let matchedToken = null;
 
       for (const [token, idx] of Object.entries(monthMap)) {
         const re = new RegExp("\\b" + token + "\\b", "i");
@@ -718,7 +745,7 @@
           if (!ok) continue;
         }
 
-        if (re.test(qLower)) { monthIdx = idx; matchedToken = token; break; }
+        if (re.test(qLower)) { monthIdx = idx; break; }
       }
 
       if (monthIdx === null) return null;
@@ -756,17 +783,11 @@
       const todayStart = startOfDayLocal(now);
 
       // Today / yesterday
-      if (/\btoday\b/.test(qLower)) {
-        return { startMs: todayStart, endMs: nowMs, label: "today" };
-      }
-      if (/\byesterday\b/.test(qLower)) {
-        return { startMs: todayStart - DAY_MS, endMs: todayStart, label: "yesterday" };
-      }
+      if (/\btoday\b/.test(qLower)) return { startMs: todayStart, endMs: nowMs, label: "today" };
+      if (/\byesterday\b/.test(qLower)) return { startMs: todayStart - DAY_MS, endMs: todayStart, label: "yesterday" };
 
       // This week (calendar week starting Monday)
-      if (/\bthis week\b/.test(qLower)) {
-        return { startMs: startOfWeekMonday(now), endMs: nowMs, label: "this week" };
-      }
+      if (/\bthis week\b/.test(qLower)) return { startMs: startOfWeekMonday(now), endMs: nowMs, label: "this week" };
 
       // "Calendar last week" or "previous week" (previous Mon-Sun)
       if (/\b(calendar last week|previous week|last calendar week)\b/.test(qLower)) {
@@ -774,10 +795,8 @@
         return { startMs: startThis - 7 * DAY_MS, endMs: startThis, label: "last week (Mon-Sun)" };
       }
 
-      // "Last week" default (common user meaning): past 7 days (calendar-day anchored)
+      // "Last week" default
       if (/\blast week\b/.test(qLower)) {
-        // If the query includes explicit day-of-week filtering (Wed-Fri last week),
-        // treat last week as the previous Mon-Sun to match typical phrasing.
         if (ctx?.preferCalendarLastWeek) {
           const startThis = startOfWeekMonday(now);
           return { startMs: startThis - 7 * DAY_MS, endMs: startThis, label: "last week (Mon-Sun)" };
@@ -819,7 +838,6 @@
         const weekStart = startOfWeekMonday(now);
         const satThisWeek = weekStart + 5 * DAY_MS;
         const end = satThisWeek + 2 * DAY_MS;
-        // If weekend is in the future, return it anyway (will likely be 0).
         return { startMs: satThisWeek, endMs: Math.min(end, nowMs), label: "this weekend" };
       }
 
@@ -833,24 +851,20 @@
 
         const todayDow = new Date(todayStart).getDay();
 
-        // Fix: "last Tuesday" should mean the most recent Tuesday BEFORE today (not "previous calendar week")
+        // "last Tuesday" = most recent Tuesday BEFORE today
         if (mod === "last") {
           let diff = (todayDow - target + 7) % 7;
-          if (diff === 0) diff = 7; // if today is Tuesday, "last Tuesday" = 7 days ago
+          if (diff === 0) diff = 7;
           const dayStart = todayStart - diff * DAY_MS;
           return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `last ${DOW_FULL[target]}` };
         }
 
-        // Keep "this" and "next" anchored to the calendar week (Mon-Sun)
+        // "this" and "next" anchored to calendar week (Mon-Sun)
         const weekStart = startOfWeekMonday(now);
         const offset = (target + 6) % 7; // Mon=0 ... Sun=6
         const dayStart = weekStart + offset * DAY_MS;
 
-        if (mod === "this") {
-          return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `this ${DOW_FULL[target]}` };
-        }
-
-        // next
+        if (mod === "this") return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `this ${DOW_FULL[target]}` };
         return { startMs: dayStart + 7 * DAY_MS, endMs: dayStart + 8 * DAY_MS, label: `next ${DOW_FULL[target]}` };
       }
 
@@ -877,11 +891,10 @@
       if (days) {
         const n = /^\d+$/.test(days[2]) ? parseInt(days[2], 10) : (numberWords[days[2]] ?? 1);
         const nn = Math.max(1, n);
-        // Calendar anchored: includes today as day 1
         return { startMs: todayStart - (nn - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "day")}` };
       }
 
-      // past/last N weeks (treated as N*7 days, calendar anchored)
+      // past/last N weeks
       const weeks = qLower.match(/\b(past|last)\s+(\d{1,2}|a|an|one|two|three|four|five|six|seven|eight)\s+weeks?\b/);
       if (weeks) {
         const n = /^\d+$/.test(weeks[2]) ? parseInt(weeks[2], 10) : (numberWords[weeks[2]] ?? 1);
@@ -890,13 +903,13 @@
         return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "week")}` };
       }
 
-      // past/last N months (approx 30-day blocks, calendar anchored)
+      // past/last N months (approx)
       const months = qLower.match(/\b(past|last)\s+(\d{1,2}|a|an|one|two|three|four|five|six)\s+months?\b/);
       if (months) {
         const n = /^\d+$/.test(months[2]) ? parseInt(months[2], 10) : (numberWords[months[2]] ?? 1);
         const nn = Math.max(1, n);
         const daysCount = nn * 30;
-        return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: now.getTime(), label: `past ${nn} ${plural(nn, "month")}` };
+        return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "month")}` };
       }
 
       // Shorthand "last 7 days", "last 30 days"
@@ -920,7 +933,6 @@
 
       // Since DATE
       if (/\bsince\b/.test(qLower) && dateTokens.length >= 1) {
-        // Pick the first date after "since" if possible
         const sinceIdx = qLower.indexOf("since");
         const t = dateTokens.find(x => x.idx >= sinceIdx) || dateTokens[0];
         return { startMs: t.dayStart, endMs: nowMs, label: `since ${fmtDate(t.dayStart)}` };
@@ -962,7 +974,8 @@
           const b = dateTokens[i + 1];
           const mid = qLower.slice(a.idx + a.len, b.idx).trim();
 
-          const isDashRange = mid === "-" || mid === "–" || mid === "—";
+          // NOTE: using unicode escapes to avoid literal en dash / em dash characters in the code.
+          const isDashRange = mid === "-" || mid === "\u2013" || mid === "\u2014";
           const isToRange = mid === "to" || mid === "thru" || mid === "through" || mid === "until";
 
           if (isDashRange || isToRange) {
@@ -971,7 +984,6 @@
             return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
           }
 
-          // Support compact "12/1-12/15" where mid might be "-" with no spaces (captured by substring trim)
           if (/^-$/.test(mid)) {
             const start = Math.min(a.dayStart, b.dayStart);
             const end = Math.max(a.dayStart, b.dayStart) + DAY_MS;
@@ -980,27 +992,23 @@
         }
       }
 
-      // Month range (December 2025) before named ranges, because "in December" should win over "last month"
+      // Month range before named ranges
       const monthRange = parseMonthRange(qLower, now);
       if (monthRange) return monthRange;
 
-      // Named ranges (today, this week, last week, etc)
+      // Named ranges
       const named = parseNamedRange(qLower, now, ctx);
       if (named) return named;
 
-      // Numeric relatives (past 2 days, last 3 weeks)
+      // Numeric relatives
       const rel = parseNumericRelative(qLower, now);
       if (rel) return rel;
 
-      // If query mentions "week" but not specific, default to past 7 days (calendar anchored)
-      if (/\bweek\b/.test(qLower)) {
-        return { startMs: todayStart - 6 * DAY_MS, endMs: nowMs, label: "past 7 days" };
-      }
-      if (/\bmonth\b/.test(qLower)) {
-        return { startMs: todayStart - 29 * DAY_MS, endMs: nowMs, label: "past 30 days" };
-      }
+      // Defaults
+      if (/\bweek\b/.test(qLower)) return { startMs: todayStart - 6 * DAY_MS, endMs: nowMs, label: "past 7 days" };
+      if (/\bmonth\b/.test(qLower)) return { startMs: todayStart - 29 * DAY_MS, endMs: nowMs, label: "past 30 days" };
 
-      // If they asked about plural weekdays like "fridays" but gave no range, default to this year (useful + predictable)
+      // If they asked about plural weekdays but gave no range, default to this year
       if (dayFilter && /\b(this year|last year|this month|last month|this week|last week|past|last|since|between|from|\d{1,2}\/\d{1,2}|20\d{2}-\d{1,2}-\d{1,2})\b/.test(qLower) === false) {
         const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
         return { startMs: start, endMs: nowMs, label: "this year" };
@@ -1040,13 +1048,11 @@
 
         daySets[e.user].add(e.dayStart);
 
-        // per day
         if (!perDay.has(e.dayStart)) perDay.set(e.dayStart, { Moe: 0, Trish: 0, total: 0 });
         const pd = perDay.get(e.dayStart);
         pd[e.user] = (pd[e.user] || 0) + e.v;
         pd.total += e.v;
 
-        // per dow
         if (!perDow.has(e.dow)) perDow.set(e.dow, { Moe: 0, Trish: 0, total: 0 });
         const pw = perDow.get(e.dow);
         pw[e.user] = (pw[e.user] || 0) + e.v;
@@ -1057,10 +1063,299 @@
     }
 
     function daysTouchedByRange(range, nowMs) {
-      // Count calendar days overlapped by [startMs, endMs)
       const start = startOfDayLocal(range.startMs);
       const end = startOfDayLocal(Math.max(range.startMs, Math.min(range.endMs, nowMs) - 1)) + DAY_MS;
       return Math.max(1, Math.round((end - start) / DAY_MS));
+    }
+
+    // -------------------------------
+    // Chart.js integration
+    // -------------------------------
+    let queryChart = null;
+
+    function destroyQueryChart() {
+      if (queryChart) {
+        queryChart.destroy();
+        queryChart = null;
+      }
+      if (el.queryChartWrap) el.queryChartWrap.classList.add("hidden");
+    }
+
+    function calcRangeSpanDays(range) {
+      const startDay = startOfDayLocal(range.startMs);
+      const endDay = startOfDayLocal(Math.max(range.startMs, range.endMs - 1));
+      return Math.max(1, Math.round((endDay - startDay) / DAY_MS) + 1);
+    }
+
+    function labelForDay(dayStartMs) {
+      const d = new Date(dayStartMs);
+      return `${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getDate()}`;
+    }
+
+    function labelForWeek(weekStartMs) {
+      const d = new Date(weekStartMs);
+      return `Week of ${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getDate()}`;
+    }
+
+    function labelForMonth(monthStartMs) {
+      const d = new Date(monthStartMs);
+      return `${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getFullYear()}`;
+    }
+
+    /**
+     * renderChart(intent, userInfo, agg, range)
+     * Chart Selection rules:
+     * - comparison OR ("who" for single day) -> pie
+     * - breakdown/count over a range -> bars (single dataset if 1 user, clustered if 2)
+     *
+     * DENSITY LOGIC (day / week / month bucketing) is handled inside buildTimeBucketsFromPerDay().
+     */
+    function renderChart(intent, userInfo, agg, range) {
+      // Always destroy prior chart instance before creating a new one (prevents ghost hover + glitches).
+      destroyQueryChart();
+
+      if (!window.Chart || !el.queryChartCanvas || !el.queryChartWrap) return;
+
+      // Hide if there is no meaningful data
+      const moeTotal = agg?.sums?.Moe || 0;
+      const trishTotal = agg?.sums?.Trish || 0;
+      const hasAny = (moeTotal + trishTotal) > 0;
+
+      // If no data, keep the text answer, but do not render a chart.
+      if (!hasAny) return;
+
+      const moeColor = cssVar("--moe", "#6ab7ff");
+      const trishColor = cssVar("--trish", "#ff8da1");
+      const textColor = cssVar("--text", "#544a4a");
+
+      const spanDays = calcRangeSpanDays(range);
+      const isSingleDay = spanDays === 1;
+
+      const wantsPie = intent?.type === "comparison" || (intent?.whoSignals && isSingleDay);
+
+      // Common options (no gridlines, rounded vibe, clear legend)
+      const commonPlugins = {
+        legend: {
+          display: true,
+          position: "bottom",
+          labels: {
+            color: textColor,
+            boxWidth: 14,
+            boxHeight: 14,
+            padding: 14,
+            font: { weight: "800" }
+          }
+        },
+        tooltip: {
+          enabled: true,
+          titleColor: textColor,
+          bodyColor: textColor
+        }
+      };
+
+      if (wantsPie) {
+        el.queryChartWrap.classList.remove("hidden");
+
+        queryChart = new window.Chart(el.queryChartCanvas, {
+          type: "pie",
+          data: {
+            labels: ["Moe", "Trish"],
+            datasets: [{
+              data: [moeTotal, trishTotal],
+              backgroundColor: [moeColor, trishColor],
+              borderColor: ["#ffffff", "#ffffff"],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: commonPlugins,
+            animation: { duration: 450 }
+          }
+        });
+        return;
+      }
+
+      // Bar charts for breakdown/count over range
+      // Special case: breakdown by day of week -> categorical bars (Mon-Sun)
+      if (intent?.type === "breakdown" && intent?.breakdownMode === "dow") {
+        const order = [1,2,3,4,5,6,0]; // Mon..Sun
+        const labels = order.map(d => DOW_SHORT[d]);
+
+        const moeData = order.map(d => (agg.perDow.get(d)?.Moe || 0));
+        const trishData = order.map(d => (agg.perDow.get(d)?.Trish || 0));
+
+        const datasets = (userInfo.users.length === 1)
+          ? [{
+              label: userInfo.users[0],
+              data: (userInfo.users[0] === "Moe" ? moeData : trishData),
+              backgroundColor: (userInfo.users[0] === "Moe" ? moeColor : trishColor),
+              borderRadius: 12,
+              borderSkipped: false
+            }]
+          : [
+              { label: "Moe", data: moeData, backgroundColor: moeColor, borderRadius: 12, borderSkipped: false },
+              { label: "Trish", data: trishData, backgroundColor: trishColor, borderRadius: 12, borderSkipped: false }
+            ];
+
+        el.queryChartWrap.classList.remove("hidden");
+        queryChart = new window.Chart(el.queryChartCanvas, {
+          type: "bar",
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: commonPlugins,
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: textColor, font: { weight: "800" } }
+              },
+              y: {
+                beginAtZero: true,
+                grid: { display: false },
+                ticks: { color: textColor, font: { weight: "800" }, precision: 0 }
+              }
+            },
+            animation: { duration: 450 }
+          }
+        });
+        return;
+      }
+
+      // Time-series bars (day/week/month) using perDay bucketing
+      const bucketed = buildTimeBucketsFromPerDay(agg.perDay, range);
+      if (!bucketed.labels.length) return;
+
+      const datasets = (userInfo.users.length === 1)
+        ? [{
+            label: userInfo.users[0],
+            data: bucketed.series.map(s => s[userInfo.users[0]] || 0),
+            backgroundColor: (userInfo.users[0] === "Moe") ? moeColor : trishColor,
+            borderRadius: 12,
+            borderSkipped: false
+          }]
+        : [
+            {
+              label: "Moe",
+              data: bucketed.series.map(s => s.Moe || 0),
+              backgroundColor: moeColor,
+              borderRadius: 12,
+              borderSkipped: false
+            },
+            {
+              label: "Trish",
+              data: bucketed.series.map(s => s.Trish || 0),
+              backgroundColor: trishColor,
+              borderRadius: 12,
+              borderSkipped: false
+            }
+          ];
+
+      el.queryChartWrap.classList.remove("hidden");
+      queryChart = new window.Chart(el.queryChartCanvas, {
+        type: "bar",
+        data: { labels: bucketed.labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: commonPlugins,
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                color: textColor,
+                font: { weight: "800" },
+                maxRotation: 0,
+                autoSkip: true
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { display: false },
+              ticks: { color: textColor, font: { weight: "800" }, precision: 0 }
+            }
+          },
+          animation: { duration: 450 }
+        }
+      });
+    }
+
+    // ---------------------------------------------------------
+    // DENSITY LOGIC HIGHLIGHT: day/week/month bucketing happens here
+    // ---------------------------------------------------------
+    function buildTimeBucketsFromPerDay(perDayMap, range) {
+      const startDay = startOfDayLocal(range.startMs);
+      const endDay = startOfDayLocal(Math.max(range.startMs, range.endMs - 1));
+      const spanDays = Math.max(1, Math.round((endDay - startDay) / DAY_MS) + 1);
+
+      // === DENSITY LOGIC START ===
+      // 30 days or under -> Day
+      // 31 to 90 days -> Calendar Week (starting Monday)
+      // Over 90 days -> Month
+      let mode = "day";
+      if (spanDays > 90) mode = "month";
+      else if (spanDays > 30) mode = "week";
+      // === DENSITY LOGIC END ===
+
+      const bucketKeys = [];
+      const labels = [];
+      const bucketMap = new Map(); // key -> { Moe, Trish, total }
+
+      function ensureBucket(key, label) {
+        if (!bucketMap.has(key)) bucketMap.set(key, { Moe: 0, Trish: 0, total: 0 });
+        bucketKeys.push(key);
+        labels.push(label);
+      }
+
+      if (mode === "day") {
+        for (let t = startDay; t <= endDay; t += DAY_MS) ensureBucket(t, labelForDay(t));
+      } else if (mode === "week") {
+        let t = startOfWeekMonday(startDay);
+        const endW = startOfWeekMonday(endDay);
+        for (; t <= endW; t += 7 * DAY_MS) ensureBucket(t, labelForWeek(t));
+      } else {
+        // month
+        const s = new Date(startDay);
+        s.setDate(1); s.setHours(0,0,0,0);
+        const e = new Date(endDay);
+        e.setDate(1); e.setHours(0,0,0,0);
+
+        let y = s.getFullYear();
+        let m = s.getMonth();
+        const endY = e.getFullYear();
+        const endM = e.getMonth();
+
+        while (y < endY || (y === endY && m <= endM)) {
+          const t = new Date(y, m, 1, 0, 0, 0, 0).getTime();
+          ensureBucket(t, labelForMonth(t));
+          m += 1;
+          if (m > 11) { m = 0; y += 1; }
+        }
+      }
+
+      // Aggregate perDay values into buckets
+      for (const [dayStart, rec] of perDayMap.entries()) {
+        if (dayStart < startDay || dayStart > endDay) continue;
+
+        let key;
+        if (mode === "day") key = dayStart;
+        else if (mode === "week") key = startOfWeekMonday(dayStart);
+        else {
+          const d = new Date(dayStart);
+          key = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0).getTime();
+        }
+
+        if (!bucketMap.has(key)) continue;
+        const b = bucketMap.get(key);
+        b.Moe += rec.Moe || 0;
+        b.Trish += rec.Trish || 0;
+        b.total += rec.total || 0;
+      }
+
+      const series = bucketKeys.map(k => bucketMap.get(k) || { Moe: 0, Trish: 0, total: 0 });
+      return { mode, labels, series, spanDays };
     }
 
     // --- Natural Language Query handler ---
@@ -1078,6 +1373,9 @@
     `;
 
     function handleQuery() {
+      // Chart should remain until the next query is submitted -> destroy at the start of every submission.
+      destroyQueryChart();
+
       const raw = (el.queryInput?.value || "").trim();
       const now = new Date();
       const nowMs = now.getTime();
@@ -1105,7 +1403,6 @@
         return;
       }
 
-      // If they asked "this weekend" or "this friday" and it is in the future, avoid confusing 0s.
       if (range.startMs > nowMs) {
         setQueryResult(
           `That time range starts in the future (${fmtDate(range.startMs)}).<small>
@@ -1126,48 +1423,44 @@
       const filterText = dayFilter ? `, filter: ${dayFilter.label}` : "";
       const meta = `<small>Range used: ${rangeText}${filterText}</small>`;
 
+      function finish(html, ok) {
+        setQueryResult(html, ok);
+        if (ok) renderChart(intent, userInfo, agg, range);
+      }
+
       // --- Answer formatting by intent ---
       if (intent.type === "comparison") {
-        // Who-only questions without explicit compare words should behave like "who drank" if applicable.
         const isWhoDrank = intent.whoSignals && !(/\bmore\b|\bmost\b|\bwinner\b|\bvs\b|\bversus\b|\bcompare\b/.test(qLower));
 
         if (isWhoDrank) {
           const who = [];
           if (moeN > 0) who.push(`Moe (${moeN})`);
           if (trishN > 0) who.push(`Trish (${trishN})`);
-          if (who.length === 0) {
-            setQueryResult(`No drinks logged in ${range.label}.${meta}`, true);
-          } else if (who.length === 1) {
-            setQueryResult(`${who[0]} logged drinks in ${range.label}.${meta}`, true);
-          } else {
-            setQueryResult(`${who.join(" and ")} logged drinks in ${range.label}.${meta}`, true);
-          }
+          if (who.length === 0) finish(`No drinks logged in ${range.label}.${meta}`, true);
+          else if (who.length === 1) finish(`${who[0]} logged drinks in ${range.label}.${meta}`, true);
+          else finish(`${who.join(" and ")} logged drinks in ${range.label}.${meta}`, true);
           return;
         }
 
-        const leader =
-          moeN === trishN ? null : (moeN > trishN ? "Moe" : "Trish");
+        const leader = moeN === trishN ? null : (moeN > trishN ? "Moe" : "Trish");
         if (!leader) {
-          setQueryResult(`Tie - Moe and Trish both had ${moeN} ${plural(moeN, "drink")} in ${range.label}.${meta}`, true);
+          finish(`Tie - Moe and Trish both had ${moeN} ${plural(moeN, "drink")} in ${range.label}.${meta}`, true);
           return;
         }
+
         const a = leader === "Moe" ? moeN : trishN;
         const b = leader === "Moe" ? trishN : moeN;
 
-        // If question sounds yes/no: "did Trish drink more than Moe"
         const yesNo = /\bdid\b/.test(qLower) && (/\bmore than\b|\bless than\b/.test(qLower));
         if (yesNo) {
           const askedTrishMore = /\btrish\b.*\bmore than\b.*\bmoe\b|\bmore than\b.*\bmoe\b.*\btrish\b/.test(qLower) || /\btrish\b.*\bmore than\b/.test(qLower);
           const trishMore = trishN > moeN;
           const answer = askedTrishMore ? (trishMore ? "Yes" : "No") : (trishMore ? "No" : "Yes");
-          setQueryResult(`${answer} - Moe: ${moeN}, Trish: ${trishN} in ${range.label}.${meta}`, true);
+          finish(`${answer} - Moe: ${moeN}, Trish: ${trishN} in ${range.label}.${meta}`, true);
           return;
         }
 
-        setQueryResult(
-          `${leader} had more drinks than ${leader === "Moe" ? "Trish" : "Moe"} in ${range.label} (${a} vs ${b}).${meta}`,
-          true
-        );
+        finish(`${leader} had more drinks than ${leader === "Moe" ? "Trish" : "Moe"} in ${range.label} (${a} vs ${b}).${meta}`, true);
         return;
       }
 
@@ -1176,18 +1469,15 @@
         if (userInfo.users.length === 1) {
           const u = userInfo.users[0];
           const n = agg.sums[u] || 0;
-          setQueryResult(`${u} had ${n} ${plural(n, "drink")} in ${range.label}.${meta}`, true);
+          finish(`${u} had ${n} ${plural(n, "drink")} in ${range.label}.${meta}`, true);
           return;
         }
         const leader = moeN === trishN ? null : (moeN > trishN ? "Moe" : "Trish");
         if (!leader) {
-          setQueryResult(`Difference is 0 - Moe and Trish are tied at ${moeN} in ${range.label}.${meta}`, true);
+          finish(`Difference is 0 - Moe and Trish are tied at ${moeN} in ${range.label}.${meta}`, true);
           return;
         }
-        setQueryResult(
-          `${leader} led by ${diff} ${plural(diff, "drink")} in ${range.label} (Moe ${moeN} vs Trish ${trishN}).${meta}`,
-          true
-        );
+        finish(`${leader} led by ${diff} ${plural(diff, "drink")} in ${range.label} (Moe ${moeN} vs Trish ${trishN}).${meta}`, true);
         return;
       }
 
@@ -1197,18 +1487,12 @@
           const u = userInfo.users[0];
           const n = agg.sums[u] || 0;
           const avg = n / daysCount;
-          setQueryResult(
-            `${u} averaged ${avg.toFixed(2)} ${plural(2, "drink")} per day in ${range.label} (${n} total over ${daysCount} ${plural(daysCount, "day")}).${meta}`,
-            true
-          );
+          finish(`${u} averaged ${avg.toFixed(2)} drinks per day in ${range.label} (${n} total over ${daysCount} ${plural(daysCount, "day")}).${meta}`, true);
           return;
         }
         const total = agg.total || 0;
         const avg = total / daysCount;
-        setQueryResult(
-          `Average ${avg.toFixed(2)} drinks per day in ${range.label} (${total} total over ${daysCount} ${plural(daysCount, "day")}).<br>Moe ${moeN}, Trish ${trishN}.${meta}`,
-          true
-        );
+        finish(`Average ${avg.toFixed(2)} drinks per day in ${range.label} (${total} total over ${daysCount} ${plural(daysCount, "day")}).<br>Moe ${moeN}, Trish ${trishN}.${meta}`, true);
         return;
       }
 
@@ -1216,17 +1500,16 @@
         if (userInfo.users.length === 1) {
           const u = userInfo.users[0];
           const d = agg.daySets[u]?.size || 0;
-          setQueryResult(`${u} logged drinks on ${d} ${plural(d, "day")} in ${range.label}.${meta}`, true);
+          finish(`${u} logged drinks on ${d} ${plural(d, "day")} in ${range.label}.${meta}`, true);
           return;
         }
         const dM = agg.daySets["Moe"]?.size || 0;
         const dT = agg.daySets["Trish"]?.size || 0;
-        setQueryResult(`Days with drinks in ${range.label}: Moe ${dM}, Trish ${dT}.${meta}`, true);
+        finish(`Days with drinks in ${range.label}: Moe ${dM}, Trish ${dT}.${meta}`, true);
         return;
       }
 
       if (intent.type === "peak_day") {
-        // Find peak day by total (or by single user if specified)
         let bestDay = null;
         let bestVal = -Infinity;
 
@@ -1234,29 +1517,23 @@
           const val = (userInfo.users.length === 1)
             ? (rec[userInfo.users[0]] || 0)
             : (rec.total || 0);
-          if (val > bestVal) {
-            bestVal = val;
-            bestDay = dayStart;
-          }
+          if (val > bestVal) { bestVal = val; bestDay = dayStart; }
         }
 
         if (bestDay === null || bestVal <= 0) {
-          setQueryResult(`No drinks logged in ${range.label}.${meta}`, true);
+          finish(`No drinks logged in ${range.label}.${meta}`, true);
           return;
         }
 
         const when = fmtDate(bestDay);
         if (userInfo.users.length === 1) {
           const u = userInfo.users[0];
-          setQueryResult(`${u}'s peak day in ${range.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")}.${meta}`, true);
+          finish(`${u}'s peak day in ${range.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")}.${meta}`, true);
           return;
         }
 
         const rec = agg.perDay.get(bestDay);
-        setQueryResult(
-          `Peak day in ${range.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")} total.<br>Moe ${rec.Moe || 0}, Trish ${rec.Trish || 0}.${meta}`,
-          true
-        );
+        finish(`Peak day in ${range.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")} total.<br>Moe ${rec.Moe || 0}, Trish ${rec.Trish || 0}.${meta}`, true);
         return;
       }
 
@@ -1264,7 +1541,6 @@
         const mode = intent.breakdownMode || "date";
 
         if (mode === "dow") {
-          // Build Mon-Sun order for readability
           const order = [1,2,3,4,5,6,0];
           const lines = [];
           for (const dow of order) {
@@ -1280,21 +1556,21 @@
             ? `${userInfo.users[0]} breakdown by day of week in ${range.label}:`
             : `Total breakdown by day of week in ${range.label}:`;
 
-          setQueryResult(`${header}<br>${lines.join(" | ")}${meta}`, true);
+          finish(`${header}<br>${lines.join(" | ")}${meta}`, true);
           return;
         }
 
-        // Date mode: day-by-day
         const days = Array.from(agg.perDay.entries()).sort((a, b) => a[0] - b[0]);
         if (days.length === 0) {
-          setQueryResult(`No drinks logged in ${range.label}.${meta}`, true);
+          finish(`No drinks logged in ${range.label}.${meta}`, true);
           return;
         }
 
-        const maxLines = 10; // keep UI readable
+        const maxLines = 10;
         const shown = days.slice(-maxLines);
         const rows = shown.map(([dayStart, rec]) => {
-          const dayLabel = `${monthNameFromIndex(new Date(dayStart).getMonth()).slice(0,3)} ${new Date(dayStart).getDate()}`;
+          const d = new Date(dayStart);
+          const dayLabel = `${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getDate()}`;
           if (userInfo.users.length === 1) {
             const u = userInfo.users[0];
             return `${dayLabel}: ${rec[u] || 0}`;
@@ -1306,7 +1582,7 @@
           ? `Day-by-day (showing last ${maxLines} days in range) for ${range.label}:`
           : `Day-by-day for ${range.label}:`;
 
-        setQueryResult(`${header}<br>${rows.join("<br>")}${meta}`, true);
+        finish(`${header}<br>${rows.join("<br>")}${meta}`, true);
         return;
       }
 
@@ -1315,33 +1591,26 @@
         const who = [];
         if (moeN > 0) who.push(`Moe (${moeN})`);
         if (trishN > 0) who.push(`Trish (${trishN})`);
-        if (who.length === 0) setQueryResult(`No drinks logged in ${range.label}.${meta}`, true);
-        else setQueryResult(`${who.join(" and ")} logged drinks in ${range.label}.${meta}`, true);
+        if (who.length === 0) finish(`No drinks logged in ${range.label}.${meta}`, true);
+        else finish(`${who.join(" and ")} logged drinks in ${range.label}.${meta}`, true);
         return;
       }
 
       if (userInfo.users.length === 1) {
         const u = userInfo.users[0];
         const n = agg.sums[u] || 0;
-        setQueryResult(`${u} had ${n} ${plural(n, "drink")} in ${range.label}.${meta}`, true);
+        finish(`${u} had ${n} ${plural(n, "drink")} in ${range.label}.${meta}`, true);
         return;
       }
 
       const total = agg.total || 0;
-      setQueryResult(
-        `Moe had ${moeN} ${plural(moeN, "drink")}, Trish had ${trishN} ${plural(trishN, "drink")}. Total ${total} ${plural(total, "drink")} in ${range.label}.${meta}`,
-        true
-      );
+      finish(`Moe had ${moeN} ${plural(moeN, "drink")}, Trish had ${trishN} ${plural(trishN, "drink")}. Total ${total} ${plural(total, "drink")} in ${range.label}.${meta}`, true);
     }
 
     if (el.querySubmit) el.querySubmit.addEventListener("click", handleQuery);
-    if (el.queryInput) {
-      el.queryInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") handleQuery();
-      });
-    }
+    if (el.queryInput) el.queryInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleQuery(); });
 
-    // --- View / Nav (function declarations are hoisted) ---
+    // --- View / Nav ---
     function switchTab(tab) {
       el.tabTracker.classList.toggle("active", tab === "tracker");
       el.tabAnalytics.classList.toggle("active", tab === "analytics");
@@ -1351,16 +1620,16 @@
 
       el.header.innerText = tab === "tracker" ? "Drink Tracker" : "History";
     }
-    window.switchTab = switchTab; // keep inline onclick working
+    window.switchTab = switchTab;
 
     function startApp() {
       el.viewLogin.classList.add("hidden");
       el.nav.classList.remove("hidden");
       switchTab("tracker");
 
-      // Helpful default prompt
-      if (el.queryResults && el.queryResults.innerHTML.trim() === "") {
+      if (el.queryText && el.queryText.innerHTML.trim() === "") {
         setQueryResult(EXAMPLES_HTML, false);
+        destroyQueryChart();
       }
     }
 
@@ -1376,9 +1645,7 @@
     }
 
     el.btnLogin.addEventListener("click", login);
-    el.pass.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") login();
-    });
+    el.pass.addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
 
     // --- Drinks ---
     function addDrink(user, amount) {
@@ -1412,7 +1679,7 @@
         setTimeout(() => (card.style.transform = "none"), 100);
       }
     }
-    window.addDrink = addDrink; // keep inline onclick working
+    window.addDrink = addDrink;
 
     // --- Stats (tracker + summary table) ---
     function updateText(id, val) {
@@ -1422,11 +1689,9 @@
 
     function calculate() {
       const now = new Date();
-      const nowMs = now.getTime();
-
       const todayStart = startOfDayLocal(now);
-      const start7 = todayStart - (7 - 1) * DAY_MS;   // last 7 calendar days including today
-      const start30 = todayStart - (30 - 1) * DAY_MS; // last 30 calendar days including today
+      const start7 = todayStart - (7 - 1) * DAY_MS;
+      const start30 = todayStart - (30 - 1) * DAY_MS;
 
       const stats = {
         moe: { day: 0, week: 0, month: 0, all: 0 },
@@ -1472,9 +1737,7 @@
     });
 
     // --- Auto-start ---
-    if (localStorage.getItem("auth_token") === "Moetrin") {
-      startApp();
-    }
+    if (localStorage.getItem("auth_token") === "Moetrin") startApp();
   </script>
 </body>
 </html>
