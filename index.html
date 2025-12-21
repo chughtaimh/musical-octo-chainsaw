@@ -1,3 +1,137 @@
+## 1) Brainstorm user questions by intent
+
+### A. Simple totals and counts
+
+* How many drinks did Moe have today?
+* How many drinks did Trish have this month?
+* Total drinks for both in the past 7 days
+* How many drinks so far in 2025?
+
+### B. Comparisons, winners, and “did X beat Y”
+
+* Who had more drinks last week?
+* Did Trish drink more than Moe in December?
+* Who won yesterday?
+* Who drank the most this month?
+
+### C. Differences and margins
+
+* By how many did Moe beat Trish last week?
+* What is the difference between Moe and Trish in the past 30 days?
+
+### D. Explicit date ranges and “since”
+
+* How many drinks from 12/1 to 12/15?
+* Drinks between Dec 1 and Dec 15, 2025
+* Since 12/01, how many drinks did we have?
+* How many drinks on 12/25?
+
+### E. Calendar periods
+
+* This week vs last week
+* This month vs last month
+* This year vs last year
+
+### F. Day-of-week and weekend/weekday analysis
+
+* How many drinks on weekends last month?
+* How many drinks did Moe have on Fridays this year?
+* Count drinks Wed-Fri last week
+
+### G. “Who” questions (unknown person)
+
+* Who had a drink yesterday?
+* Who drank on 12/25?
+* Did anyone drink last weekend?
+
+### H. Breakdowns and summaries
+
+* Show a day-by-day breakdown for last week
+* Breakdown by day of week for this month
+
+### I. Averages and “per day”
+
+* Average drinks per day this month
+* Moe average per day in the past 14 days
+
+---
+
+## 2) Variations (test-case style phrasing)
+
+### Totals
+
+* “how many drinks did moe have”
+* “moe total today”
+* “count trish past 2 days”
+* “drinks for both last 10 days”
+
+### Comparisons
+
+* “who had more last week”
+* “moe vs trish yesterday”
+* “who was the winner this month”
+* “did trish drink more than moe in november”
+
+### Differences
+
+* “difference between moe and trish last week”
+* “by how many did moe win this month”
+* “margin in past 30 days”
+
+### Date ranges
+
+* “12/1-12/15 for moe”
+* “from 12/1 to 12/15”
+* “between dec 1 and dec 15 2025”
+* “since dec 1”
+* “on 2025-12-25”
+
+### Calendar
+
+* “this week”
+* “last week” (common user meaning: past 7 days)
+* “calendar last week” / “previous week” (previous Mon-Sun)
+* “this month” / “last month”
+* “this year” / “last year”
+
+### Day-of-week filters
+
+* “weekends last month”
+* “weekdays this week”
+* “fridays this year”
+* “wed-fri last week”
+* “monday to wednesday last week”
+
+### Who
+
+* “who drank yesterday”
+* “anyone drink last weekend”
+* “who had drinks on christmas”
+
+### Breakdowns
+
+* “breakdown by day of week this month”
+* “day by day last week”
+* “daily breakdown since 12/1”
+
+### Averages
+
+* “average per day this month”
+* “avg drinks per day last 14 days”
+
+---
+
+## 3-6) Implementation, review, fixes - delivered below as a complete updated `index.html`
+
+Key behavior changes you will notice:
+
+* “last week” defaults to **past 7 days** (common expectation), but “calendar last week / previous week” uses the **previous Mon-Sun** week.
+* All “past N days” style ranges use **calendar-day boundaries** (start of local day) to reduce timezone and partial-day confusion.
+* Supports explicit date ranges (12/1-12/15, from X to Y, between X and Y), “since X”, “on X”.
+* Supports day-of-week filters (weekends, weekdays, Fridays, Wed-Fri last week).
+* Adds more intents (comparison, difference, who, breakdown, average, peak day, number of drinking days).
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -190,9 +324,10 @@
       border-radius: 18px;
       padding: 14px;
       font-weight: 800;
-      line-height: 1.3;
+      line-height: 1.35;
       min-height: 22px;
       text-align: center;
+      white-space: normal;
     }
     #query-results.good { border-color: rgba(106, 183, 255, 0.35); }
     #query-results.bad { border-color: rgba(255, 141, 161, 0.45); }
@@ -299,7 +434,7 @@
       <div class="query-container">
         <h3 style="text-align:center; color:var(--text); margin-top:0;">Ask the Log</h3>
         <div class="query-row">
-          <input type="text" id="query-input" placeholder="Ask a question... (ex: How many drinks did Moe have in December 2025? How many drinks both last week?)" />
+          <input type="text" id="query-input" placeholder="Ask a question... (ex: Who had more drinks last week? Moe 12/1-12/15? Weekends last month?)" />
           <button id="query-submit" class="btn-main btn-query">Ask</button>
         </div>
         <div id="query-results"></div>
@@ -361,8 +496,21 @@
     };
 
     let allHistory = {};
+    let eventsCache = []; // normalized events for fast querying
 
     const DAY_MS = 24 * 60 * 60 * 1000;
+
+    const DOW_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const DOW_ALIASES = {
+      sun: 0, sunday: 0,
+      mon: 1, monday: 1,
+      tue: 2, tues: 2, tuesday: 2,
+      wed: 3, weds: 3, wednesday: 3,
+      thu: 4, thur: 4, thurs: 4, thursday: 4,
+      fri: 5, friday: 5,
+      sat: 6, saturday: 6
+    };
 
     const monthMap = {
       january: 0, jan: 0,
@@ -377,6 +525,11 @@
       october: 9, oct: 9,
       november: 10, nov: 10,
       december: 11, dec: 11
+    };
+
+    const numberWords = {
+      a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+      eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20
     };
 
     function monthNameFromIndex(idx) {
@@ -395,181 +548,920 @@
       el.queryResults.innerHTML = html;
     }
 
-    function startOfDayLocal(d) {
-      const x = new Date(d);
+    function normalizeQuery(q) {
+      return String(q || "")
+        .toLowerCase()
+        .replace(/[’]/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function startOfDayLocal(dOrMs) {
+      const x = new Date(dOrMs);
       x.setHours(0, 0, 0, 0);
       return x.getTime();
     }
 
     // ISO-style week start: Monday 00:00 local
-    function startOfWeekMonday(d) {
-      const dayStart = startOfDayLocal(d);
+    function startOfWeekMonday(dOrMs) {
+      const dayStart = startOfDayLocal(dOrMs);
       const day = new Date(dayStart).getDay(); // 0 Sun, 1 Mon, ..., 6 Sat
       const diff = (day + 6) % 7; // Monday -> 0, Sunday -> 6
       return dayStart - diff * DAY_MS;
     }
 
-    function parseUsers(q) {
-      const lower = q.toLowerCase();
-
-      const hasMoe = /\bmoe\b/.test(lower);
-      const hasTrish = /\btrish\b/.test(lower);
-
-      const bothSignals = /\b(both|all|together|us|we)\b/.test(lower) || (hasMoe && hasTrish);
-
-      if (bothSignals) return ["Moe", "Trish"];
-      if (hasMoe) return ["Moe"];
-      if (hasTrish) return ["Trish"];
-
-      // If no user specified, default to both (higher answer rate)
-      return ["Moe", "Trish"];
+    function fmtDate(ms) {
+      try {
+        const d = new Date(ms);
+        const y = d.getFullYear();
+        const m = monthNameFromIndex(d.getMonth()).slice(0, 3);
+        const day = d.getDate();
+        return `${m} ${day}, ${y}`;
+      } catch {
+        return "";
+      }
     }
 
-    function parseMonthYear(q, now) {
+    function fmtRange(startMs, endMs, nowMs) {
+      const safeEnd = Math.max(startMs, endMs);
+      const endForDisplay = (safeEnd === nowMs) ? nowMs : (safeEnd - 1);
+      const a = fmtDate(startMs);
+      const b = fmtDate(endForDisplay);
+      return a === b ? a : `${a} - ${b}`;
+    }
+
+    function parseNumber(qLower) {
+      const m = qLower.match(/\b(\d{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/);
+      if (!m) return null;
+      const t = m[1];
+      if (/^\d+$/.test(t)) return parseInt(t, 10);
+      return numberWords[t] ?? null;
+    }
+
+    // --- Rebuild normalized events cache whenever history changes ---
+    function rebuildEventsCache() {
+      const out = [];
+      for (const entry of Object.values(allHistory || {})) {
+        if (!entry) continue;
+        const u = entry.user;
+        const ts = entry.timestamp;
+        if (typeof u !== "string" || typeof ts !== "number") continue;
+
+        const v = (typeof entry.value === "number" && Number.isFinite(entry.value)) ? entry.value : 1;
+        const dayStart = startOfDayLocal(ts);
+        const dow = new Date(dayStart).getDay();
+        out.push({ user: u, ts, v, dayStart, dow });
+      }
+      out.sort((a, b) => a.ts - b.ts);
+      eventsCache = out;
+    }
+
+    // --- Intent parsing ---
+    function parseIntent(qLower) {
+      const wantsDaysCount = /\bhow many days\b|\bnumber of days\b|\bdays did\b/.test(qLower);
+      const wantsAvg = /\baverage\b|\bavg\b|\bper day\b|\bdaily average\b/.test(qLower);
+      const wantsDiff = /\bdifference\b|\bdiff\b|\bdelta\b|\bby how many\b|\bmargin\b/.test(qLower);
+      const wantsBreakdownByDow = /\bday of week\b|\bby day of week\b|\bweekday breakdown\b/.test(qLower);
+      const wantsBreakdownByDate = /\bday by day\b|\beach day\b|\bdaily breakdown\b|\bper day\b(?!.*average)/.test(qLower);
+      const wantsPeakDay = /\bpeak\b|\bhighest\b|\bmax\b|\bmost in a day\b|\bbiggest day\b|\bwhat day\b.*\bmost\b/.test(qLower);
+
+      const compareSignals =
+        /\bvs\b|\bversus\b|\bcompare\b|\bwho (won|wins|had more|drank more)\b|\bmore than\b|\bless than\b|\bbeat\b|\bwinner\b/.test(qLower) ||
+        (/\bwho\b/.test(qLower) && /\bmore\b|\bmost\b/.test(qLower));
+
+      // "Who drank yesterday?" style
+      const whoSignals = /^\s*who\b/.test(qLower) || /\bwho drank\b|\bwho had\b/.test(qLower);
+
+      let type = "count";
+      if (wantsPeakDay) type = "peak_day";
+      else if (wantsDaysCount) type = "days_count";
+      else if (wantsAvg) type = "average";
+      else if (wantsDiff) type = "difference";
+      else if (compareSignals) type = "comparison";
+      else if (wantsBreakdownByDow || wantsBreakdownByDate) type = "breakdown";
+
+      const breakdownMode = wantsBreakdownByDow ? "dow" : (wantsBreakdownByDate ? "date" : null);
+
+      return { type, breakdownMode, whoSignals };
+    }
+
+    // --- User parsing ---
+    function parseUsers(qLower, intent) {
+      const hasMoe = /\bmoe\b/.test(qLower) || /\bme\b/.test(qLower) || /\bmy\b/.test(qLower);
+      const hasTrish = /\btrish\b/.test(qLower);
+
+      const bothSignals = /\b(both|all|together|us|we|everyone)\b/.test(qLower) || (hasMoe && hasTrish);
+
+      if (bothSignals) return { users: ["Moe", "Trish"], mode: "both" };
+      if (hasMoe) return { users: ["Moe"], mode: "single" };
+      if (hasTrish) return { users: ["Trish"], mode: "single" };
+
+      // If the question is "who..." and user not specified, we want a who-style answer.
+      if (intent.whoSignals) return { users: ["Moe", "Trish"], mode: "who" };
+
+      // Default: both (higher answer rate)
+      return { users: ["Moe", "Trish"], mode: "both" };
+    }
+
+    // --- Day-of-week filter parsing (weekends, weekdays, Wed-Fri, Fridays) ---
+    function expandDowRange(d1, d2) {
+      // Expand in Monday-based order: Mon(1) -> ... -> Sun(0) at end
+      const order = [1,2,3,4,5,6,0];
+      const i1 = order.indexOf(d1);
+      const i2 = order.indexOf(d2);
+      if (i1 === -1 || i2 === -1) return null;
+
+      const out = [];
+      if (i2 >= i1) {
+        for (let i = i1; i <= i2; i++) out.push(order[i]);
+      } else {
+        // wrap
+        for (let i = i1; i < order.length; i++) out.push(order[i]);
+        for (let i = 0; i <= i2; i++) out.push(order[i]);
+      }
+      return out;
+    }
+
+    function parseDayFilter(qLower) {
+      // Weekend(s) and weekday(s)
+      if (/\bweekends?\b/.test(qLower) || /\bweek end(s)?\b/.test(qLower)) {
+        return { days: [6, 0], label: "weekends" };
+      }
+      if (/\bweekdays?\b/.test(qLower)) {
+        return { days: [1,2,3,4,5], label: "weekdays" };
+      }
+
+      // Day ranges like "wed-fri", "wednesday to friday", "mon thru thu"
+      const rangeMatch = qLower.match(/\b(mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b\s*(?:-|to|thru|through)\s*\b(mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b/);
+      if (rangeMatch) {
+        const a = rangeMatch[1].replace(/sday|nesday|rsday|urday/g, "");
+        const b = rangeMatch[2].replace(/sday|nesday|rsday|urday/g, "");
+        const d1 = DOW_ALIASES[a] ?? null;
+        const d2 = DOW_ALIASES[b] ?? null;
+        const days = (d1 !== null && d2 !== null) ? expandDowRange(d1, d2) : null;
+        if (days && days.length) return { days, label: `${DOW_SHORT[d1]}-${DOW_SHORT[d2]}` };
+      }
+
+      // Plural days like "fridays", "mondays"
+      const pluralMatch = qLower.match(/\b(sundays|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays)\b/);
+      if (pluralMatch) {
+        const token = pluralMatch[1].slice(0, -1); // remove trailing s
+        const dow = DOW_ALIASES[token] ?? null;
+        if (dow !== null) return { days: [dow], label: pluralMatch[1] };
+      }
+
+      return null;
+    }
+
+    // --- Date parsing helpers ---
+    function inferYearForMonthDay(monthIdx, day, now, opts = {}) {
+      const nowY = now.getFullYear();
+      const todayStart = startOfDayLocal(now);
+
+      const hasNext = !!opts.hasNext;
+      const hasThis = !!opts.hasThis;
+
+      let y = nowY;
+      let candidate = new Date(y, monthIdx, day, 0, 0, 0, 0).getTime();
+
+      if (hasNext) {
+        if (candidate <= todayStart) y = nowY + 1;
+        return y;
+      }
+
+      if (hasThis) {
+        return nowY;
+      }
+
+      // Default: prefer past if the date would be in the future.
+      if (candidate > todayStart) y = nowY - 1;
+      return y;
+    }
+
+    function parseDateStringToDayStart(dateStr, now, qLower) {
+      const s = String(dateStr || "").trim().toLowerCase();
+      const hasNext = /\bnext\b/.test(qLower);
+      const hasThis = /\bthis\b/.test(qLower) || /\bcurrent\b/.test(qLower);
+
+      // ISO: YYYY-MM-DD
+      let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (m) {
+        const y = parseInt(m[1], 10);
+        const mo = parseInt(m[2], 10) - 1;
+        const d = parseInt(m[3], 10);
+        const dt = new Date(y, mo, d, 0, 0, 0, 0);
+        return isNaN(dt.getTime()) ? null : dt.getTime();
+      }
+
+      // Slash: M/D(/YYYY)
+      m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+      if (m) {
+        const mo = parseInt(m[1], 10) - 1;
+        const d = parseInt(m[2], 10);
+        let y;
+        if (m[3]) {
+          y = parseInt(m[3], 10);
+          if (y < 100) y = 2000 + y;
+        } else {
+          y = inferYearForMonthDay(mo, d, now, { hasNext, hasThis });
+        }
+        const dt = new Date(y, mo, d, 0, 0, 0, 0);
+        return isNaN(dt.getTime()) ? null : dt.getTime();
+      }
+
+      // Month name: "dec 5 2025" or "december 5"
+      m = s.match(/^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?$/);
+      if (m) {
+        const monthToken = m[1];
+        const mo = monthMap[monthToken] ?? null;
+        if (mo === null) return null;
+        const d = parseInt(m[2], 10);
+        const y = m[3] ? parseInt(m[3], 10) : inferYearForMonthDay(mo, d, now, { hasNext, hasThis });
+        const dt = new Date(y, mo, d, 0, 0, 0, 0);
+        return isNaN(dt.getTime()) ? null : dt.getTime();
+      }
+
+      // Day month: "5 dec 2025"
+      m = s.match(/^(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?$/);
+      if (m) {
+        const d = parseInt(m[1], 10);
+        const monthToken = m[2];
+        const mo = monthMap[monthToken] ?? null;
+        if (mo === null) return null;
+        const y = m[3] ? parseInt(m[3], 10) : inferYearForMonthDay(mo, d, now, { hasNext, hasThis });
+        const dt = new Date(y, mo, d, 0, 0, 0, 0);
+        return isNaN(dt.getTime()) ? null : dt.getTime();
+      }
+
+      return null;
+    }
+
+    function extractDateTokens(qLower, now) {
+      const tokens = [];
+
+      function addToken(text, idx) {
+        const dayStart = parseDateStringToDayStart(text, now, qLower);
+        if (dayStart === null) return;
+        tokens.push({ text, idx, len: text.length, dayStart });
+      }
+
+      // ISO tokens
+      for (const match of qLower.matchAll(/\b(19\d{2}|20\d{2})-(\d{1,2})-(\d{1,2})\b/g)) {
+        addToken(match[0], match.index ?? 0);
+      }
+
+      // Slash tokens
+      for (const match of qLower.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g)) {
+        addToken(match[0], match.index ?? 0);
+      }
+
+      // Month name + day tokens
+      for (const match of qLower.matchAll(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?\b/g)) {
+        addToken(match[0], match.index ?? 0);
+      }
+
+      // Day + month name tokens
+      for (const match of qLower.matchAll(/\b(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?\b/g)) {
+        addToken(match[0], match.index ?? 0);
+      }
+
+      // De-dupe by index
+      const seen = new Set();
+      const deduped = [];
+      for (const t of tokens.sort((a, b) => a.idx - b.idx)) {
+        const k = `${t.idx}:${t.len}:${t.dayStart}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        deduped.push(t);
+      }
+      return deduped;
+    }
+
+    // --- Month range parsing ---
+    function parseMonthRange(qLower, now) {
+      // Avoid false positives for "may" unless context is clear.
       let monthIdx = null;
+      let matchedToken = null;
 
       for (const [token, idx] of Object.entries(monthMap)) {
         const re = new RegExp("\\b" + token + "\\b", "i");
-        if (re.test(q)) { monthIdx = idx; break; }
-      }
 
-      let year = now.getFullYear();
-      const yearMatch = q.match(/\b(19\d{2}|20\d{2})\b/);
-      if (yearMatch) year = parseInt(yearMatch[1], 10);
+        if (token === "may") {
+          // Require context for may: "in may", "may 2025", "may 5"
+          const ok = /\bin may\b/.test(qLower) || /\bmay\s+\d{4}\b/.test(qLower) || /\bmay\s+\d{1,2}\b/.test(qLower);
+          if (!ok) continue;
+        }
+
+        if (re.test(qLower)) { monthIdx = idx; matchedToken = token; break; }
+      }
 
       if (monthIdx === null) return null;
-      return { monthIdx, year };
+
+      // Explicit year
+      const yearMatch = qLower.match(/\b(19\d{2}|20\d{2})\b/);
+      const nowY = now.getFullYear();
+      const nowM = now.getMonth();
+      const hasNext = /\bnext\b/.test(qLower);
+      const hasLast = /\blast\b|\bprevious\b/.test(qLower);
+      const hasThis = /\bthis\b|\bcurrent\b/.test(qLower);
+
+      let year;
+      if (yearMatch) {
+        year = parseInt(yearMatch[1], 10);
+      } else if (hasNext) {
+        year = (monthIdx <= nowM) ? nowY + 1 : nowY;
+      } else if (hasLast) {
+        year = (monthIdx >= nowM) ? nowY - 1 : nowY;
+      } else if (hasThis) {
+        year = nowY;
+      } else {
+        // Default: if month is ahead of current month, assume last year (more useful for logs)
+        year = (monthIdx > nowM) ? nowY - 1 : nowY;
+      }
+
+      const start = new Date(year, monthIdx, 1, 0, 0, 0, 0).getTime();
+      const end = new Date(year, monthIdx + 1, 1, 0, 0, 0, 0).getTime();
+      return { startMs: start, endMs: end, label: `${monthNameFromIndex(monthIdx)} ${year}` };
     }
 
-    function parseRelativeRange(q, now) {
-      const lower = q.toLowerCase();
+    // --- Named / relative range parsing ---
+    function parseNamedRange(qLower, now, ctx) {
       const nowMs = now.getTime();
-
-      // Rolling windows (past/last N units)
-      const daysMatch = lower.match(/\b(past|last)\s+(\d{1,3})\s+day(s)?\b/);
-      if (daysMatch) {
-        const n = Math.max(1, parseInt(daysMatch[2], 10));
-        return {
-          startMs: nowMs - n * DAY_MS,
-          endMs: nowMs,
-          label: `past ${n} ${plural(n, "day")}`
-        };
-      }
-
-      const weeksMatch = lower.match(/\b(past|last)\s+(\d{1,2})\s+week(s)?\b/);
-      if (weeksMatch) {
-        const n = Math.max(1, parseInt(weeksMatch[2], 10));
-        return {
-          startMs: nowMs - n * 7 * DAY_MS,
-          endMs: nowMs,
-          label: `past ${n} ${plural(n, "week")}`
-        };
-      }
-
-      const monthsMatch = lower.match(/\b(past|last)\s+(\d{1,2})\s+month(s)?\b/);
-      if (monthsMatch) {
-        const n = Math.max(1, parseInt(monthsMatch[2], 10));
-        return {
-          startMs: nowMs - n * 30 * DAY_MS,
-          endMs: nowMs,
-          label: `past ${n} ${plural(n, "month")}`
-        };
-      }
+      const todayStart = startOfDayLocal(now);
 
       // Today / yesterday
-      if (/\btoday\b/.test(lower)) {
-        const start = startOfDayLocal(now);
-        return { startMs: start, endMs: nowMs, label: "today" };
+      if (/\btoday\b/.test(qLower)) {
+        return { startMs: todayStart, endMs: nowMs, label: "today" };
+      }
+      if (/\byesterday\b/.test(qLower)) {
+        return { startMs: todayStart - DAY_MS, endMs: todayStart, label: "yesterday" };
       }
 
-      if (/\byesterday\b/.test(lower)) {
-        const startToday = startOfDayLocal(now);
-        const startY = startToday - DAY_MS;
-        return { startMs: startY, endMs: startToday, label: "yesterday" };
+      // This week (calendar week starting Monday)
+      if (/\bthis week\b/.test(qLower)) {
+        return { startMs: startOfWeekMonday(now), endMs: nowMs, label: "this week" };
       }
 
-      // This week / last week (calendar weeks starting Monday)
-      if (/\bthis\s+week\b/.test(lower)) {
-        const start = startOfWeekMonday(now);
-        return { startMs: start, endMs: nowMs, label: "this week" };
-      }
-
-      if (/\blast\s+week\b/.test(lower)) {
+      // "Calendar last week" or "previous week" (previous Mon-Sun)
+      if (/\b(calendar last week|previous week|last calendar week)\b/.test(qLower)) {
         const startThis = startOfWeekMonday(now);
-        const startLast = startThis - 7 * DAY_MS;
-        return { startMs: startLast, endMs: startThis, label: "last week" };
+        return { startMs: startThis - 7 * DAY_MS, endMs: startThis, label: "last week (Mon-Sun)" };
       }
 
-      // This month / last month (calendar months)
-      if (/\bthis\s+month\b/.test(lower)) {
+      // "Last week" default (common user meaning): past 7 days (calendar-day anchored)
+      if (/\blast week\b/.test(qLower)) {
+        // If the query includes explicit day-of-week filtering (Wed-Fri last week),
+        // treat last week as the previous Mon-Sun to match typical phrasing.
+        if (ctx?.preferCalendarLastWeek) {
+          const startThis = startOfWeekMonday(now);
+          return { startMs: startThis - 7 * DAY_MS, endMs: startThis, label: "last week (Mon-Sun)" };
+        }
+        return { startMs: todayStart - 6 * DAY_MS, endMs: nowMs, label: "last week (past 7 days)" };
+      }
+
+      // This month / last month (calendar)
+      if (/\bthis month\b/.test(qLower)) {
         const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
         return { startMs: start, endMs: nowMs, label: "this month" };
       }
-
-      if (/\blast\s+month\b/.test(lower)) {
+      if (/\blast month\b/.test(qLower)) {
         const startThis = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
-        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0).getTime();
-        return { startMs: prev, endMs: startThis, label: "last month" };
+        const startPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0).getTime();
+        return { startMs: startPrev, endMs: startThis, label: "last month" };
       }
 
-      // Common shorthand: "last 7 days", "last 30 days", "last week" without "did"
-      if (/\b7\s*day(s)?\b/.test(lower) && /\blast\b/.test(lower)) {
-        return { startMs: nowMs - 7 * DAY_MS, endMs: nowMs, label: "past 7 days" };
+      // This year / last year (calendar)
+      if (/\bthis year\b/.test(qLower) || /\bcurrent year\b/.test(qLower) || /\bytd\b/.test(qLower)) {
+        const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
+        return { startMs: start, endMs: nowMs, label: "this year" };
       }
-      if (/\b30\s*day(s)?\b/.test(lower) && /\blast\b/.test(lower)) {
-        return { startMs: nowMs - 30 * DAY_MS, endMs: nowMs, label: "past 30 days" };
+      if (/\blast year\b|\bprevious year\b/.test(qLower)) {
+        const startThis = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
+        const startPrev = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0).getTime();
+        return { startMs: startPrev, endMs: startThis, label: "last year" };
+      }
+
+      // This weekend / last weekend (Sat-Sun)
+      if (/\blast weekend\b/.test(qLower)) {
+        const weekStart = startOfWeekMonday(now);
+        const satThisWeek = weekStart + 5 * DAY_MS;
+        const satLastWeek = satThisWeek - 7 * DAY_MS;
+        const end = satLastWeek + 2 * DAY_MS; // Monday 00:00 after weekend
+        return { startMs: satLastWeek, endMs: end, label: "last weekend" };
+      }
+      if (/\bthis weekend\b/.test(qLower)) {
+        const weekStart = startOfWeekMonday(now);
+        const satThisWeek = weekStart + 5 * DAY_MS;
+        const end = satThisWeek + 2 * DAY_MS;
+        // If weekend is in the future, return it anyway (will likely be 0).
+        return { startMs: satThisWeek, endMs: Math.min(end, nowMs), label: "this weekend" };
+      }
+
+      // Specific weekday references: "last friday", "this tuesday", "on monday"
+      const wd = qLower.match(/\b(last|this|next)\s+(sun(?:day)?|mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?)\b/);
+      if (wd) {
+        const mod = wd[1];
+        const raw = wd[2].replace(/sday|nesday|rsday|urday/g, "");
+        const target = DOW_ALIASES[raw];
+        const weekStart = startOfWeekMonday(now);
+        const offset = (target + 6) % 7; // Mon=0 ... Sun=6
+        const dayStart = weekStart + offset * DAY_MS;
+
+        if (mod === "this") {
+          return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `this ${DOW_FULL[target]}` };
+        }
+        if (mod === "next") {
+          return { startMs: dayStart + 7 * DAY_MS, endMs: dayStart + 8 * DAY_MS, label: `next ${DOW_FULL[target]}` };
+        }
+        // last
+        return { startMs: dayStart - 7 * DAY_MS, endMs: dayStart - 6 * DAY_MS, label: `last ${DOW_FULL[target]}` };
+      }
+
+      // "On Friday" (most recent occurrence, including today if it matches)
+      const onWd = qLower.match(/\bon\s+(sun(?:day)?|mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?)\b/);
+      if (onWd) {
+        const raw = onWd[1].replace(/sday|nesday|rsday|urday/g, "");
+        const target = DOW_ALIASES[raw];
+        const todayDow = new Date(todayStart).getDay();
+        const diff = (todayDow - target + 7) % 7;
+        const dayStart = todayStart - diff * DAY_MS;
+        return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `on ${DOW_FULL[target]}` };
       }
 
       return null;
     }
 
-    function resolveTimeRange(q, now) {
-      // Priority: explicit month name (December 2025) beats relative phrases
-      const monthYear = parseMonthYear(q, now);
-      if (monthYear) {
-        const { monthIdx, year } = monthYear;
-        const start = new Date(year, monthIdx, 1, 0, 0, 0, 0).getTime();
-        const end = new Date(year, monthIdx + 1, 1, 0, 0, 0, 0).getTime();
-        return { startMs: start, endMs: end, label: `${monthNameFromIndex(monthIdx)} ${year}` };
+    function parseNumericRelative(qLower, now) {
+      const nowMs = now.getTime();
+      const todayStart = startOfDayLocal(now);
+
+      // past/last N days
+      const days = qLower.match(/\b(past|last)\s+(\d{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s+days?\b/);
+      if (days) {
+        const n = /^\d+$/.test(days[2]) ? parseInt(days[2], 10) : (numberWords[days[2]] ?? 1);
+        const nn = Math.max(1, n);
+        // Calendar anchored: includes today as day 1
+        return { startMs: todayStart - (nn - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "day")}` };
       }
 
-      const rel = parseRelativeRange(q, now);
+      // past/last N weeks (treated as N*7 days, calendar anchored)
+      const weeks = qLower.match(/\b(past|last)\s+(\d{1,2}|a|an|one|two|three|four|five|six|seven|eight)\s+weeks?\b/);
+      if (weeks) {
+        const n = /^\d+$/.test(weeks[2]) ? parseInt(weeks[2], 10) : (numberWords[weeks[2]] ?? 1);
+        const nn = Math.max(1, n);
+        const daysCount = nn * 7;
+        return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "week")}` };
+      }
+
+      // past/last N months (approx 30-day blocks, calendar anchored)
+      const months = qLower.match(/\b(past|last)\s+(\d{1,2}|a|an|one|two|three|four|five|six)\s+months?\b/);
+      if (months) {
+        const n = /^\d+$/.test(months[2]) ? parseInt(months[2], 10) : (numberWords[months[2]] ?? 1);
+        const nn = Math.max(1, n);
+        const daysCount = nn * 30;
+        return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: now.getTime(), label: `past ${nn} ${plural(nn, "month")}` };
+      }
+
+      // Shorthand "last 7 days", "last 30 days"
+      const nDays = qLower.match(/\blast\s+(7|30)\s+days?\b/);
+      if (nDays) {
+        const nn = parseInt(nDays[1], 10);
+        return { startMs: todayStart - (nn - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} days` };
+      }
+
+      return null;
+    }
+
+    // --- Explicit date range parsing ---
+    function resolveTimeRange(rawQ, now, ctx) {
+      const qLower = normalizeQuery(rawQ);
+      const nowMs = now.getTime();
+      const todayStart = startOfDayLocal(now);
+
+      const dayFilter = parseDayFilter(qLower);
+      const dateTokens = extractDateTokens(qLower, now);
+
+      // Since DATE
+      if (/\bsince\b/.test(qLower) && dateTokens.length >= 1) {
+        // Pick the first date after "since" if possible
+        const sinceIdx = qLower.indexOf("since");
+        const t = dateTokens.find(x => x.idx >= sinceIdx) || dateTokens[0];
+        return { startMs: t.dayStart, endMs: nowMs, label: `since ${fmtDate(t.dayStart)}` };
+      }
+
+      // On DATE (single day)
+      if (/\bon\b/.test(qLower) && dateTokens.length >= 1) {
+        const onIdx = qLower.indexOf("on");
+        const t = dateTokens.find(x => x.idx >= onIdx) || dateTokens[0];
+        return { startMs: t.dayStart, endMs: t.dayStart + DAY_MS, label: `on ${fmtDate(t.dayStart)}` };
+      }
+
+      // Between DATE and DATE
+      if (/\bbetween\b/.test(qLower) && dateTokens.length >= 2) {
+        const betweenIdx = qLower.indexOf("between");
+        const andIdx = qLower.indexOf(" and ", betweenIdx);
+        const t1 = dateTokens.find(x => x.idx >= betweenIdx) || dateTokens[0];
+        const t2 = (andIdx >= 0 ? dateTokens.find(x => x.idx >= andIdx) : null) || dateTokens[1];
+        const start = Math.min(t1.dayStart, t2.dayStart);
+        const end = Math.max(t1.dayStart, t2.dayStart) + DAY_MS; // inclusive
+        return { startMs: start, endMs: end, label: `between ${fmtDate(start)} and ${fmtDate(end - DAY_MS)}` };
+      }
+
+      // From DATE to DATE
+      if (/\bfrom\b/.test(qLower) && dateTokens.length >= 2) {
+        const fromIdx = qLower.indexOf("from");
+        const toIdx = qLower.indexOf(" to ", fromIdx);
+        const t1 = dateTokens.find(x => x.idx >= fromIdx) || dateTokens[0];
+        const t2 = (toIdx >= 0 ? dateTokens.find(x => x.idx >= toIdx) : null) || dateTokens[1];
+        const start = Math.min(t1.dayStart, t2.dayStart);
+        const end = Math.max(t1.dayStart, t2.dayStart) + DAY_MS; // inclusive
+        return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
+      }
+
+      // DATE - DATE (or DATE to DATE) range
+      if (dateTokens.length >= 2) {
+        for (let i = 0; i < dateTokens.length - 1; i++) {
+          const a = dateTokens[i];
+          const b = dateTokens[i + 1];
+          const mid = qLower.slice(a.idx + a.len, b.idx).trim();
+
+          const isDashRange = mid === "-" || mid === "–" || mid === "—";
+          const isToRange = mid === "to" || mid === "thru" || mid === "through" || mid === "until";
+
+          if (isDashRange || isToRange) {
+            const start = Math.min(a.dayStart, b.dayStart);
+            const end = Math.max(a.dayStart, b.dayStart) + DAY_MS; // inclusive
+            return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
+          }
+
+          // Support compact "12/1-12/15" where mid might be "-" with no spaces (captured by substring trim)
+          if (/^-$/.test(mid)) {
+            const start = Math.min(a.dayStart, b.dayStart);
+            const end = Math.max(a.dayStart, b.dayStart) + DAY_MS;
+            return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
+          }
+        }
+      }
+
+      // Month range (December 2025) before named ranges, because "in December" should win over "last month"
+      const monthRange = parseMonthRange(qLower, now);
+      if (monthRange) return monthRange;
+
+      // Named ranges (today, this week, last week, etc)
+      const named = parseNamedRange(qLower, now, ctx);
+      if (named) return named;
+
+      // Numeric relatives (past 2 days, last 3 weeks)
+      const rel = parseNumericRelative(qLower, now);
       if (rel) return rel;
 
-      // Default fallback: if query mentions "week" but not this/last/past, assume past 7 days
-      const lower = q.toLowerCase();
-      if (/\bweek\b/.test(lower)) {
-        return { startMs: now.getTime() - 7 * DAY_MS, endMs: now.getTime(), label: "past 7 days" };
+      // If query mentions "week" but not specific, default to past 7 days (calendar anchored)
+      if (/\bweek\b/.test(qLower)) {
+        return { startMs: todayStart - 6 * DAY_MS, endMs: nowMs, label: "past 7 days" };
       }
-      if (/\bmonth\b/.test(lower)) {
-        return { startMs: now.getTime() - 30 * DAY_MS, endMs: now.getTime(), label: "past 30 days" };
+      if (/\bmonth\b/.test(qLower)) {
+        return { startMs: todayStart - 29 * DAY_MS, endMs: nowMs, label: "past 30 days" };
+      }
+
+      // If they asked about plural weekdays like "fridays" but gave no range, default to this year (useful + predictable)
+      if (dayFilter && /\b(this year|last year|this month|last month|this week|last week|past|last|since|between|from|\d{1,2}\/\d{1,2}|20\d{2}-\d{1,2}-\d{1,2})\b/.test(qLower) === false) {
+        const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
+        return { startMs: start, endMs: nowMs, label: "this year" };
       }
 
       return null;
     }
 
-    function sumForUsersInRange(users, startMs, endMs) {
+    // --- Aggregation engine ---
+    function aggregate(users, range, filters) {
+      const startMs = range.startMs;
+      const endMs = range.endMs;
+      const dayFilter = filters?.dayFilter;
+
       const sums = {};
-      for (const u of users) sums[u] = 0;
-
-      for (const entry of Object.values(allHistory || {})) {
-        if (!entry) continue;
-
-        const u = entry.user;
-        if (!u || sums[u] === undefined) continue;
-
-        const ts = entry.timestamp;
-        if (typeof ts !== "number") continue;
-        if (ts < startMs || ts >= endMs) continue;
-
-        const v = (typeof entry.value === "number" && Number.isFinite(entry.value)) ? entry.value : 1;
-        sums[u] += v;
+      const daySets = {};
+      for (const u of users) {
+        sums[u] = 0;
+        daySets[u] = new Set();
       }
 
       let total = 0;
-      for (const v of Object.values(sums)) total += v;
+      const perDay = new Map(); // dayStart -> { Moe, Trish, total }
+      const perDow = new Map(); // dow -> { Moe, Trish, total }
 
-      return { sums, total };
+      const allowedDays = dayFilter?.days ? new Set(dayFilter.days) : null;
+
+      for (const e of eventsCache) {
+        if (!e) continue;
+        if (e.ts < startMs || e.ts >= endMs) continue;
+        if (!sums.hasOwnProperty(e.user)) continue;
+
+        if (allowedDays && !allowedDays.has(e.dow)) continue;
+
+        sums[e.user] += e.v;
+        total += e.v;
+
+        daySets[e.user].add(e.dayStart);
+
+        // per day
+        if (!perDay.has(e.dayStart)) perDay.set(e.dayStart, { Moe: 0, Trish: 0, total: 0 });
+        const pd = perDay.get(e.dayStart);
+        pd[e.user] = (pd[e.user] || 0) + e.v;
+        pd.total += e.v;
+
+        // per dow
+        if (!perDow.has(e.dow)) perDow.set(e.dow, { Moe: 0, Trish: 0, total: 0 });
+        const pw = perDow.get(e.dow);
+        pw[e.user] = (pw[e.user] || 0) + e.v;
+        pw.total += e.v;
+      }
+
+      return { sums, total, perDay, perDow, daySets };
+    }
+
+    function daysTouchedByRange(range, nowMs) {
+      // Count calendar days overlapped by [startMs, endMs)
+      const start = startOfDayLocal(range.startMs);
+      const end = startOfDayLocal(Math.max(range.startMs, Math.min(range.endMs, nowMs) - 1)) + DAY_MS;
+      return Math.max(1, Math.round((end - start) / DAY_MS));
+    }
+
+    // --- Natural Language Query handler ---
+    const EXAMPLES_HTML = `
+      Try questions like:<small>
+      How many drinks did Moe have today?<br>
+      How many drinks did Trish have in December 2025?<br>
+      How many drinks both last week?<br>
+      Who had more drinks last week?<br>
+      Moe 12/1-12/15<br>
+      Weekends last month<br>
+      Fridays this year for Moe<br>
+      Day by day last week
+      </small>
+    `;
+
+    function handleQuery() {
+      const raw = (el.queryInput?.value || "").trim();
+      const now = new Date();
+      const nowMs = now.getTime();
+
+      if (!raw) {
+        setQueryResult(EXAMPLES_HTML, false);
+        return;
+      }
+
+      const qLower = normalizeQuery(raw);
+      const intent = parseIntent(qLower);
+      const userInfo = parseUsers(qLower, intent);
+      const dayFilter = parseDayFilter(qLower);
+
+      const preferCalendarLastWeek = !!(dayFilter && /\blast week\b/.test(qLower));
+      const range = resolveTimeRange(raw, now, { preferCalendarLastWeek });
+
+      if (!range) {
+        setQueryResult(
+          `Sorry - I could not find a time range in that question.<small>
+          Try: today, yesterday, last week, calendar last week, past 7 days, last month, this year, or an explicit range like 12/1-12/15.
+          </small>`,
+          false
+        );
+        return;
+      }
+
+      // If they asked "this weekend" or "this friday" and it is in the future, avoid confusing 0s.
+      if (range.startMs > nowMs) {
+        setQueryResult(
+          `That time range starts in the future (${fmtDate(range.startMs)}).<small>
+          Try "last weekend" or "last Friday" for past results.
+          </small>`,
+          false
+        );
+        return;
+      }
+
+      const filters = { dayFilter };
+      const agg = aggregate(userInfo.users, range, filters);
+
+      const moeN = agg.sums["Moe"] || 0;
+      const trishN = agg.sums["Trish"] || 0;
+
+      const rangeText = fmtRange(range.startMs, range.endMs, nowMs);
+      const filterText = dayFilter ? `, filter: ${dayFilter.label}` : "";
+      const meta = `<small>Range used: ${rangeText}${filterText}</small>`;
+
+      // --- Answer formatting by intent ---
+      if (intent.type === "comparison") {
+        // Who-only questions without explicit compare words should behave like "who drank" if applicable.
+        const isWhoDrank = intent.whoSignals && !(/\bmore\b|\bmost\b|\bwinner\b|\bvs\b|\bversus\b|\bcompare\b/.test(qLower));
+
+        if (isWhoDrank) {
+          const who = [];
+          if (moeN > 0) who.push(`Moe (${moeN})`);
+          if (trishN > 0) who.push(`Trish (${trishN})`);
+          if (who.length === 0) {
+            setQueryResult(`No drinks logged in ${range.label}.${meta}`, true);
+          } else if (who.length === 1) {
+            setQueryResult(`${who[0]} logged drinks in ${range.label}.${meta}`, true);
+          } else {
+            setQueryResult(`${who.join(" and ")} logged drinks in ${range.label}.${meta}`, true);
+          }
+          return;
+        }
+
+        const leader =
+          moeN === trishN ? null : (moeN > trishN ? "Moe" : "Trish");
+        if (!leader) {
+          setQueryResult(`Tie - Moe and Trish both had ${moeN} ${plural(moeN, "drink")} in ${range.label}.${meta}`, true);
+          return;
+        }
+        const a = leader === "Moe" ? moeN : trishN;
+        const b = leader === "Moe" ? trishN : moeN;
+
+        // If question sounds yes/no: "did Trish drink more than Moe"
+        const yesNo = /\bdid\b/.test(qLower) && (/\bmore than\b|\bless than\b/.test(qLower));
+        if (yesNo) {
+          const askedTrishMore = /\btrish\b.*\bmore than\b.*\bmoe\b|\bmore than\b.*\bmoe\b.*\btrish\b/.test(qLower) || /\btrish\b.*\bmore than\b/.test(qLower);
+          const trishMore = trishN > moeN;
+          const answer = askedTrishMore ? (trishMore ? "Yes" : "No") : (trishMore ? "No" : "Yes");
+          setQueryResult(`${answer} - Moe: ${moeN}, Trish: ${trishN} in ${range.label}.${meta}`, true);
+          return;
+        }
+
+        setQueryResult(
+          `${leader} had more drinks than ${leader === "Moe" ? "Trish" : "Moe"} in ${range.label} (${a} vs ${b}).${meta}`,
+          true
+        );
+        return;
+      }
+
+      if (intent.type === "difference") {
+        const diff = Math.abs(moeN - trishN);
+        if (userInfo.users.length === 1) {
+          const u = userInfo.users[0];
+          const n = agg.sums[u] || 0;
+          setQueryResult(`${u} had ${n} ${plural(n, "drink")} in ${range.label}.${meta}`, true);
+          return;
+        }
+        const leader = moeN === trishN ? null : (moeN > trishN ? "Moe" : "Trish");
+        if (!leader) {
+          setQueryResult(`Difference is 0 - Moe and Trish are tied at ${moeN} in ${range.label}.${meta}`, true);
+          return;
+        }
+        setQueryResult(
+          `${leader} led by ${diff} ${plural(diff, "drink")} in ${range.label} (Moe ${moeN} vs Trish ${trishN}).${meta}`,
+          true
+        );
+        return;
+      }
+
+      if (intent.type === "average") {
+        const daysCount = daysTouchedByRange(range, nowMs);
+        if (userInfo.users.length === 1) {
+          const u = userInfo.users[0];
+          const n = agg.sums[u] || 0;
+          const avg = n / daysCount;
+          setQueryResult(
+            `${u} averaged ${avg.toFixed(2)} ${plural(2, "drink")} per day in ${range.label} (${n} total over ${daysCount} ${plural(daysCount, "day")}).${meta}`,
+            true
+          );
+          return;
+        }
+        const total = agg.total || 0;
+        const avg = total / daysCount;
+        setQueryResult(
+          `Average ${avg.toFixed(2)} drinks per day in ${range.label} (${total} total over ${daysCount} ${plural(daysCount, "day")}).<br>Moe ${moeN}, Trish ${trishN}.${meta}`,
+          true
+        );
+        return;
+      }
+
+      if (intent.type === "days_count") {
+        if (userInfo.users.length === 1) {
+          const u = userInfo.users[0];
+          const d = agg.daySets[u]?.size || 0;
+          setQueryResult(`${u} logged drinks on ${d} ${plural(d, "day")} in ${range.label}.${meta}`, true);
+          return;
+        }
+        const dM = agg.daySets["Moe"]?.size || 0;
+        const dT = agg.daySets["Trish"]?.size || 0;
+        setQueryResult(`Days with drinks in ${range.label}: Moe ${dM}, Trish ${dT}.${meta}`, true);
+        return;
+      }
+
+      if (intent.type === "peak_day") {
+        // Find peak day by total (or by single user if specified)
+        let bestDay = null;
+        let bestVal = -Infinity;
+
+        for (const [dayStart, rec] of agg.perDay.entries()) {
+          const val = (userInfo.users.length === 1)
+            ? (rec[userInfo.users[0]] || 0)
+            : (rec.total || 0);
+          if (val > bestVal) {
+            bestVal = val;
+            bestDay = dayStart;
+          }
+        }
+
+        if (bestDay === null || bestVal <= 0) {
+          setQueryResult(`No drinks logged in ${range.label}.${meta}`, true);
+          return;
+        }
+
+        const when = fmtDate(bestDay);
+        if (userInfo.users.length === 1) {
+          const u = userInfo.users[0];
+          setQueryResult(`${u}'s peak day in ${range.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")}.${meta}`, true);
+          return;
+        }
+
+        const rec = agg.perDay.get(bestDay);
+        setQueryResult(
+          `Peak day in ${range.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")} total.<br>Moe ${rec.Moe || 0}, Trish ${rec.Trish || 0}.${meta}`,
+          true
+        );
+        return;
+      }
+
+      if (intent.type === "breakdown") {
+        const mode = intent.breakdownMode || "date";
+
+        if (mode === "dow") {
+          // Build Mon-Sun order for readability
+          const order = [1,2,3,4,5,6,0];
+          const lines = [];
+          for (const dow of order) {
+            const rec = agg.perDow.get(dow) || { Moe: 0, Trish: 0, total: 0 };
+            if (userInfo.users.length === 1) {
+              const u = userInfo.users[0];
+              lines.push(`${DOW_SHORT[dow]}: ${rec[u] || 0}`);
+            } else {
+              lines.push(`${DOW_SHORT[dow]}: ${rec.total || 0}`);
+            }
+          }
+          const header = (userInfo.users.length === 1)
+            ? `${userInfo.users[0]} breakdown by day of week in ${range.label}:`
+            : `Total breakdown by day of week in ${range.label}:`;
+
+          setQueryResult(`${header}<br>${lines.join(" | ")}${meta}`, true);
+          return;
+        }
+
+        // Date mode: day-by-day
+        const days = Array.from(agg.perDay.entries()).sort((a, b) => a[0] - b[0]);
+        if (days.length === 0) {
+          setQueryResult(`No drinks logged in ${range.label}.${meta}`, true);
+          return;
+        }
+
+        const maxLines = 10; // keep UI readable
+        const shown = days.slice(-maxLines);
+        const rows = shown.map(([dayStart, rec]) => {
+          const dayLabel = `${monthNameFromIndex(new Date(dayStart).getMonth()).slice(0,3)} ${new Date(dayStart).getDate()}`;
+          if (userInfo.users.length === 1) {
+            const u = userInfo.users[0];
+            return `${dayLabel}: ${rec[u] || 0}`;
+          }
+          return `${dayLabel}: Moe ${rec.Moe || 0}, Trish ${rec.Trish || 0}, total ${rec.total || 0}`;
+        });
+
+        const header = (days.length > maxLines)
+          ? `Day-by-day (showing last ${maxLines} days in range) for ${range.label}:`
+          : `Day-by-day for ${range.label}:`;
+
+        setQueryResult(`${header}<br>${rows.join("<br>")}${meta}`, true);
+        return;
+      }
+
+      // Default: count
+      if (userInfo.mode === "who") {
+        const who = [];
+        if (moeN > 0) who.push(`Moe (${moeN})`);
+        if (trishN > 0) who.push(`Trish (${trishN})`);
+        if (who.length === 0) setQueryResult(`No drinks logged in ${range.label}.${meta}`, true);
+        else setQueryResult(`${who.join(" and ")} logged drinks in ${range.label}.${meta}`, true);
+        return;
+      }
+
+      if (userInfo.users.length === 1) {
+        const u = userInfo.users[0];
+        const n = agg.sums[u] || 0;
+        setQueryResult(`${u} had ${n} ${plural(n, "drink")} in ${range.label}.${meta}`, true);
+        return;
+      }
+
+      const total = agg.total || 0;
+      setQueryResult(
+        `Moe had ${moeN} ${plural(moeN, "drink")}, Trish had ${trishN} ${plural(trishN, "drink")}. Total ${total} ${plural(total, "drink")} in ${range.label}.${meta}`,
+        true
+      );
+    }
+
+    if (el.querySubmit) el.querySubmit.addEventListener("click", handleQuery);
+    if (el.queryInput) {
+      el.queryInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") handleQuery();
+      });
     }
 
     // --- View / Nav (function declarations are hoisted) ---
@@ -588,6 +1480,11 @@
       el.viewLogin.classList.add("hidden");
       el.nav.classList.remove("hidden");
       switchTab("tracker");
+
+      // Helpful default prompt
+      if (el.queryResults && el.queryResults.innerHTML.trim() === "") {
+        setQueryResult(EXAMPLES_HTML, false);
+      }
     }
 
     // --- Auth ---
@@ -605,63 +1502,6 @@
     el.pass.addEventListener("keydown", (e) => {
       if (e.key === "Enter") login();
     });
-
-    // --- Natural Language Query ---
-    function handleQuery() {
-      const q = (el.queryInput?.value || "").trim();
-      const now = new Date();
-
-      if (!q) {
-        setQueryResult(
-          `Type a question like:<small>
-          How many drinks Trish in past 2 days?<br>
-          How many drinks both last week?<br>
-          How many drinks did Moe have in December 2025?<br>
-          How many drinks last 10 days?
-          </small>`,
-          false
-        );
-        return;
-      }
-
-      const users = parseUsers(q);
-      const range = resolveTimeRange(q, now);
-
-      if (!range) {
-        setQueryResult(
-          `Sorry, I could not find a time range in that question.<small>
-          Try: today, yesterday, this week, last week, past 7 days, past 2 days, last month, or a month name like December 2025.
-          </small>`,
-          false
-        );
-        return;
-      }
-
-      const { startMs, endMs, label } = range;
-      const { sums, total } = sumForUsersInRange(users, startMs, endMs);
-
-      // Build friendly output
-      if (users.length === 1) {
-        const u = users[0];
-        const n = sums[u] || 0;
-        setQueryResult(`${u} had ${n} ${plural(n, "drink")} in ${label}.`, true);
-        return;
-      }
-
-      const moeN = sums["Moe"] || 0;
-      const trishN = sums["Trish"] || 0;
-      setQueryResult(
-        `Moe had ${moeN} ${plural(moeN, "drink")}, Trish had ${trishN} ${plural(trishN, "drink")}. Total ${total} ${plural(total, "drink")} in ${label}.`,
-        true
-      );
-    }
-
-    if (el.querySubmit) el.querySubmit.addEventListener("click", handleQuery);
-    if (el.queryInput) {
-      el.queryInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") handleQuery();
-      });
-    }
 
     // --- Drinks ---
     function addDrink(user, amount) {
@@ -697,7 +1537,7 @@
     }
     window.addDrink = addDrink; // keep inline onclick working
 
-    // --- Stats (existing tracker + summary table) ---
+    // --- Stats (tracker + summary table) ---
     function updateText(id, val) {
       const node = document.getElementById(id);
       if (node) node.innerText = String(val);
@@ -705,27 +1545,25 @@
 
     function calculate() {
       const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      const startOfDay = now.getTime();
-      const startOfWeek = startOfDay - 7 * DAY_MS;
-      const startOfMonth = startOfDay - 30 * DAY_MS;
+      const nowMs = now.getTime();
+
+      const todayStart = startOfDayLocal(now);
+      const start7 = todayStart - (7 - 1) * DAY_MS;   // last 7 calendar days including today
+      const start30 = todayStart - (30 - 1) * DAY_MS; // last 30 calendar days including today
 
       const stats = {
         moe: { day: 0, week: 0, month: 0, all: 0 },
         trish: { day: 0, week: 0, month: 0, all: 0 }
       };
 
-      for (const entry of Object.values(allHistory || {})) {
-        const u = entry?.user?.toLowerCase();
-        const ts = entry?.timestamp;
-
+      for (const e of eventsCache) {
+        const u = e.user?.toLowerCase();
         if (!u || !stats[u]) continue;
-        if (typeof ts !== "number") continue;
 
-        stats[u].all++;
-        if (ts >= startOfMonth) stats[u].month++;
-        if (ts >= startOfWeek) stats[u].week++;
-        if (ts >= startOfDay) stats[u].day++;
+        stats[u].all += e.v;
+        if (e.ts >= start30) stats[u].month += e.v;
+        if (e.ts >= start7) stats[u].week += e.v;
+        if (e.ts >= todayStart) stats[u].day += e.v;
       }
 
       el.cMoe.innerText = stats.moe.day;
@@ -752,6 +1590,7 @@
     // --- Realtime listener ---
     onValue(historyRef, (snapshot) => {
       allHistory = snapshot.val() || {};
+      rebuildEventsCache();
       calculate();
     });
 
@@ -762,3 +1601,4 @@
   </script>
 </body>
 </html>
+```
