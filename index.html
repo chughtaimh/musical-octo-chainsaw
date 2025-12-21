@@ -97,9 +97,10 @@
       cursor: pointer;
       width: 100%;
       box-shadow: 0 4px 10px rgba(255, 141, 161, 0.4);
-      transition: transform 0.1s;
+      transition: transform 0.1s, opacity 0.15s;
     }
     .btn-main:active { transform: scale(0.95); }
+    .btn-main:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
     .user-card {
       background: var(--card);
@@ -169,6 +170,60 @@
     .stats-table td { padding: 15px 10px; border-bottom: 2px dashed #f0f0f0; font-size: 1.2rem; font-weight: 800; }
     .val-moe { color: var(--moe); }
     .val-trish { color: var(--trish); }
+
+    /* Natural language query card */
+    .nlq-card { margin-top: 18px; }
+    .nlq-title { text-align: center; color: var(--text); margin: 0 0 10px 0; }
+    .nlq-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .nlq-input {
+      flex: 1 1 240px;
+      text-align: left;
+      font-size: 1rem;
+      margin-bottom: 0;
+      padding-left: 18px;
+      padding-right: 18px;
+    }
+    .nlq-btn {
+      flex: 0 0 140px;
+      width: auto;
+      font-size: 1rem;
+      padding: 14px 16px;
+      margin: 0;
+    }
+    .nlq-hint {
+      margin-top: 10px;
+      color: #aaa;
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .nlq-results {
+      margin-top: 12px;
+      background: #f9f9f9;
+      border: 2px dashed #eee;
+      padding: 14px;
+      border-radius: 18px;
+      font-weight: 800;
+      font-size: 1rem;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .nlq-results.loading { color: #aaa; }
+    .nlq-results.error {
+      color: #e06c80;
+      background: #fff5f7;
+      border-color: #ffd0d8;
+    }
+
+    @media (max-width: 480px) {
+      .nlq-btn { flex: 1 1 100%; width: 100%; }
+      .nlq-input { flex: 1 1 100%; }
+    }
 
     #main-nav {
       background: white;
@@ -267,7 +322,29 @@
           </tbody>
         </table>
       </div>
-      <div style="text-align:center; margin-top:40px; color:#aaa; font-size:0.8rem;">Ganbatte! (Do your best!)</div>
+
+      <!-- Natural language query UI -->
+      <div class="analytics-container nlq-card">
+        <h3 class="nlq-title">Ask the Data</h3>
+        <div class="nlq-row">
+          <input
+            id="nlq-input"
+            class="nlq-input"
+            type="text"
+            placeholder="Ask: How many drinks has Moe had this month?"
+            autocomplete="off"
+            inputmode="text"
+            aria-label="Ask a question about drinks history"
+          />
+          <button id="nlq-submit" class="btn-main nlq-btn">Submit</button>
+        </div>
+        <div class="nlq-hint">
+          Examples: "How many drinks has Trish had today?" "Moe in December 2025" "Moe and Trish this week"
+        </div>
+        <div id="query-results" class="nlq-results" aria-live="polite">Ask a question to see an answer here.</div>
+      </div>
+
+      <div style="text-align:center; margin-top:30px; color:#aaa; font-size:0.8rem;">Ganbatte! (Do your best!)</div>
     </div>
   </div>
 
@@ -282,9 +359,9 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, push, remove, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-    // --- Firebase ---
+    // Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyDwjSeEdz3g6ofnvvURIr_Q_q0KII4QtdU",
       authDomain: "drinks-tracker-cb5e5.firebaseapp.com",
@@ -300,7 +377,7 @@
     const db = getDatabase(app);
     const historyRef = ref(db, "history");
 
-    // --- DOM ---
+    // DOM
     const el = {
       header: document.getElementById("app-header"),
       viewLogin: document.getElementById("view-login"),
@@ -315,12 +392,16 @@
       cMoe: document.getElementById("c-moe"),
       cTrish: document.getElementById("c-trish"),
       cardMoe: document.getElementById("card-moe"),
-      cardTrish: document.getElementById("card-trish")
+      cardTrish: document.getElementById("card-trish"),
+
+      nlqInput: document.getElementById("nlq-input"),
+      nlqSubmit: document.getElementById("nlq-submit"),
+      nlqResults: document.getElementById("query-results")
     };
 
     let allHistory = {};
 
-    // --- View / Nav (function declarations are hoisted) ---
+    // View and nav
     function switchTab(tab) {
       el.tabTracker.classList.toggle("active", tab === "tracker");
       el.tabAnalytics.classList.toggle("active", tab === "analytics");
@@ -330,7 +411,7 @@
 
       el.header.innerText = tab === "tracker" ? "Drink Tracker" : "History";
     }
-    window.switchTab = switchTab; // keep inline onclick working
+    window.switchTab = switchTab;
 
     function startApp() {
       el.viewLogin.classList.add("hidden");
@@ -338,7 +419,7 @@
       switchTab("tracker");
     }
 
-    // --- Auth ---
+    // Auth
     function login() {
       if (el.pass.value === "Moetrin") {
         localStorage.setItem("auth_token", "Moetrin");
@@ -354,7 +435,7 @@
       if (e.key === "Enter") login();
     });
 
-    // --- Drinks ---
+    // Drinks
     function addDrink(user, amount) {
       const card = user === "Moe" ? el.cardMoe : el.cardTrish;
 
@@ -386,20 +467,25 @@
         setTimeout(() => (card.style.transform = "none"), 100);
       }
     }
-    window.addDrink = addDrink; // keep inline onclick working
+    window.addDrink = addDrink;
 
-    // --- Stats ---
+    // Stats
     function updateText(id, val) {
       const node = document.getElementById(id);
       if (node) node.innerText = String(val);
+    }
+
+    function safeValue(entry) {
+      const v = entry?.value;
+      return typeof v === "number" && Number.isFinite(v) ? v : 1;
     }
 
     function calculate() {
       const now = new Date();
       now.setHours(0, 0, 0, 0);
       const startOfDay = now.getTime();
-      const startOfWeek = startOfDay - 7 * 24 * 60 * 60 * 1000;
-      const startOfMonth = startOfDay - 30 * 24 * 60 * 60 * 1000;
+      const startOfWeekRolling = startOfDay - 7 * 24 * 60 * 60 * 1000;
+      const startOfMonthRolling = startOfDay - 30 * 24 * 60 * 60 * 1000;
 
       const stats = {
         moe: { day: 0, week: 0, month: 0, all: 0 },
@@ -409,14 +495,15 @@
       for (const entry of Object.values(allHistory || {})) {
         const u = entry?.user?.toLowerCase();
         const ts = entry?.timestamp;
-
         if (!u || !stats[u]) continue;
         if (typeof ts !== "number") continue;
 
-        stats[u].all++;
-        if (ts >= startOfMonth) stats[u].month++;
-        if (ts >= startOfWeek) stats[u].week++;
-        if (ts >= startOfDay) stats[u].day++;
+        const v = safeValue(entry);
+
+        stats[u].all += v;
+        if (ts >= startOfMonthRolling) stats[u].month += v;
+        if (ts >= startOfWeekRolling) stats[u].week += v;
+        if (ts >= startOfDay) stats[u].day += v;
       }
 
       el.cMoe.innerText = stats.moe.day;
@@ -440,16 +527,270 @@
       }
     }
 
-    // --- Realtime listener ---
+    // Realtime listener
     onValue(historyRef, (snapshot) => {
       allHistory = snapshot.val() || {};
       calculate();
     });
 
-    // --- Auto-start (safe now) ---
+    // Auto-start
     if (localStorage.getItem("auth_token") === "Moetrin") {
       startApp();
     }
+
+    // Natural language query feature
+
+    const MONTHS = {
+      january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+      july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+    };
+
+    function capitalize(s) {
+      if (!s) return s;
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function normalizeQuestion(q) {
+      return String(q || "")
+        .toLowerCase()
+        .replace(/['’]/g, "")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function startOfDayMs(d) {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      return x.getTime();
+    }
+
+    function addDaysMs(ms, days) {
+      return ms + days * 24 * 60 * 60 * 1000;
+    }
+
+    function startOfWeekMondayMs(d) {
+      const dayStart = startOfDayMs(d);
+      const dow = new Date(dayStart).getDay(); // 0 Sun, 1 Mon, ... 6 Sat
+      const offsetToMonday = (dow + 6) % 7; // Mon -> 0, Tue -> 1, ... Sun -> 6
+      return addDaysMs(dayStart, -offsetToMonday);
+    }
+
+    function parsePeople(text) {
+      const users = new Set();
+
+      if (/\bmoe\b/.test(text)) users.add("Moe");
+      if (/\btrish\b/.test(text) || /\btrisha\b/.test(text)) users.add("Trish");
+
+      return Array.from(users);
+    }
+
+    function parseTimeframe(text) {
+      const now = new Date();
+      const nowMs = Date.now();
+
+      const todayStart = startOfDayMs(now);
+      const tomorrowStart = addDaysMs(todayStart, 1);
+
+      // All time
+      if (/\ball\s*time\b|\balltime\b|\bever\b/.test(text)) {
+        return { startMs: 0, endMs: Number.POSITIVE_INFINITY, label: "all time" };
+      }
+
+      // Today / yesterday
+      if (/\btoday\b/.test(text)) {
+        return { startMs: todayStart, endMs: tomorrowStart, label: "today" };
+      }
+      if (/\byesterday\b/.test(text)) {
+        const yStart = addDaysMs(todayStart, -1);
+        return { startMs: yStart, endMs: todayStart, label: "yesterday" };
+      }
+
+      // Rolling ranges
+      const m7 = text.match(/\b(last|past)\s+7\s+days\b|\b7\s+days\b/);
+      if (m7) {
+        const start = nowMs - 7 * 24 * 60 * 60 * 1000;
+        return { startMs: start, endMs: nowMs + 1, label: "in the last 7 days" };
+      }
+      const m30 = text.match(/\b(last|past)\s+30\s+days\b|\b30\s+days\b/);
+      if (m30) {
+        const start = nowMs - 30 * 24 * 60 * 60 * 1000;
+        return { startMs: start, endMs: nowMs + 1, label: "in the last 30 days" };
+      }
+
+      // This week / last week (calendar week, Monday start)
+      if (/\bthis\s+week\b/.test(text)) {
+        const wStart = startOfWeekMondayMs(now);
+        return { startMs: wStart, endMs: nowMs + 1, label: "this week" };
+      }
+      if (/\blast\s+week\b/.test(text)) {
+        const thisWStart = startOfWeekMondayMs(now);
+        const lastWStart = addDaysMs(thisWStart, -7);
+        return { startMs: lastWStart, endMs: thisWStart, label: "last week" };
+      }
+
+      // This month / last month (calendar month)
+      if (/\bthis\s+month\b/.test(text)) {
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        const start = new Date(y, m, 1).getTime();
+        const end = new Date(y, m + 1, 1).getTime();
+        return { startMs: start, endMs: end, label: "this month" };
+      }
+      if (/\blast\s+month\b/.test(text)) {
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        const start = new Date(y, m - 1, 1).getTime();
+        const end = new Date(y, m, 1).getTime();
+        return { startMs: start, endMs: end, label: "last month" };
+      }
+
+      // This year / last year
+      if (/\bthis\s+year\b/.test(text)) {
+        const y = now.getFullYear();
+        const start = new Date(y, 0, 1).getTime();
+        const end = new Date(y + 1, 0, 1).getTime();
+        return { startMs: start, endMs: end, label: "this year" };
+      }
+      if (/\blast\s+year\b/.test(text)) {
+        const y = now.getFullYear();
+        const start = new Date(y - 1, 0, 1).getTime();
+        const end = new Date(y, 0, 1).getTime();
+        return { startMs: start, endMs: end, label: "last year" };
+      }
+
+      // Month name with optional year: "december", "december 2025", "december of 2025"
+      const monthMatch = text.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b(?:\s+(?:of\s+)?)?(\d{4})?\b/);
+      if (monthMatch) {
+        const monthName = monthMatch[1];
+        const monthIndex = MONTHS[monthName];
+        const year = monthMatch[2] ? parseInt(monthMatch[2], 10) : now.getFullYear();
+
+        const start = new Date(year, monthIndex, 1).getTime();
+        const end = new Date(year, monthIndex + 1, 1).getTime();
+        const label = monthMatch[2] ? `in ${capitalize(monthName)} ${year}` : `in ${capitalize(monthName)}`;
+        return { startMs: start, endMs: end, label };
+      }
+
+      // Year only: "in 2025" or "2025"
+      const yearMatch = text.match(/\b(?:in\s+)?(20\d{2})\b/);
+      if (yearMatch) {
+        const year = parseInt(yearMatch[1], 10);
+        const start = new Date(year, 0, 1).getTime();
+        const end = new Date(year + 1, 0, 1).getTime();
+        return { startMs: start, endMs: end, label: `in ${year}` };
+      }
+
+      return null;
+    }
+
+    function sumForUsersInRange(historyObj, users, startMs, endMs) {
+      const totals = {};
+      for (const u of users) totals[u] = 0;
+
+      for (const entry of Object.values(historyObj || {})) {
+        const name = entry?.user;
+        const ts = entry?.timestamp;
+        if (!name || typeof ts !== "number") continue;
+        if (!users.includes(name)) continue;
+        if (ts < startMs) continue;
+        if (ts >= endMs) continue;
+
+        totals[name] += safeValue(entry);
+      }
+
+      return totals;
+    }
+
+    function setNlqResult(text, kind) {
+      el.nlqResults.classList.remove("error", "loading");
+      if (kind === "error") el.nlqResults.classList.add("error");
+      if (kind === "loading") el.nlqResults.classList.add("loading");
+      el.nlqResults.textContent = text;
+    }
+
+    async function ensureHistoryLoaded() {
+      const hasCache = allHistory && Object.keys(allHistory).length > 0;
+      if (hasCache) return allHistory;
+
+      try {
+        const snap = await get(historyRef);
+        allHistory = snap.val() || {};
+      } catch (e) {
+        // Keep whatever we have in memory and let the query attempt proceed.
+      }
+
+      return allHistory || {};
+    }
+
+    function buildAnswer(users, totals, timeframeLabel) {
+      const plural = (n) => (n === 1 ? "drink" : "drinks");
+
+      if (users.length === 1) {
+        const u = users[0];
+        const n = totals[u] || 0;
+        const verb = timeframeLabel === "all time" ? "has had" : "had";
+        const tail = timeframeLabel === "all time" ? "all time" : timeframeLabel;
+        return `${u} ${verb} ${n} ${plural(n)} ${tail}.`;
+      }
+
+      const moe = totals["Moe"] || 0;
+      const trish = totals["Trish"] || 0;
+      const combined = moe + trish;
+
+      const wantsCombined = /\b(combined|together|total)\b/.test(normalizeQuestion(el.nlqInput.value)) && !/\beach\b/.test(normalizeQuestion(el.nlqInput.value));
+
+      if (wantsCombined) {
+        const verb = timeframeLabel === "all time" ? "have had" : "had";
+        const tail = timeframeLabel === "all time" ? "all time" : timeframeLabel;
+        return `Together, Moe and Trish ${verb} ${combined} ${plural(combined)} ${tail}.`;
+      }
+
+      const verb = timeframeLabel === "all time" ? "has had" : "had";
+      const tail = timeframeLabel === "all time" ? "all time" : timeframeLabel;
+      return `Moe ${verb} ${moe} ${plural(moe)} ${tail}. Trish ${verb} ${trish} ${plural(trish)} ${tail}.`;
+    }
+
+    async function handleNlqSubmit() {
+      const raw = el.nlqInput.value;
+      const q = normalizeQuestion(raw);
+
+      if (!q) {
+        setNlqResult("Type a question first, like: How many drinks has Moe had this month?", "error");
+        return;
+      }
+
+      const users = parsePeople(q);
+      const timeframe = parseTimeframe(q);
+
+      if (!users.length || !timeframe) {
+        setNlqResult(
+          "Sorry, I couldn't understand that. Please ask for a total count for Moe or Trish and a timeframe like today, this week, this month, or in January 2025.",
+          "error"
+        );
+        return;
+      }
+
+      el.nlqSubmit.disabled = true;
+      setNlqResult("Checking the history log...", "loading");
+
+      try {
+        const historyObj = await ensureHistoryLoaded();
+        const totals = sumForUsersInRange(historyObj, users, timeframe.startMs, timeframe.endMs);
+
+        const answer = buildAnswer(users, totals, timeframe.label);
+        setNlqResult(answer, "ok");
+      } catch (e) {
+        setNlqResult("Something went wrong while reading the history. Please try again.", "error");
+      } finally {
+        el.nlqSubmit.disabled = false;
+      }
+    }
+
+    el.nlqSubmit.addEventListener("click", handleNlqSubmit);
+    el.nlqInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleNlqSubmit();
+    });
   </script>
 </body>
 </html>
