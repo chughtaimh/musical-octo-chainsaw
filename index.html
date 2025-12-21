@@ -167,6 +167,8 @@
     .trish .plus { background: var(--trish); color: white; box-shadow: 0 5px 0 #e06c80; }
 
     .analytics-container { background: white; border-radius: 25px; padding: 20px; box-shadow: var(--shadow); }
+    .chart-footnote { text-align: center; color: #888; font-weight: 700; margin-top: 10px; font-size: 0.9rem; }
+    #history-chart-wrap { position: relative; height: 270px; }
     .stats-table { width: 100%; border-collapse: collapse; }
     .stats-table th { text-align: left; color: #aaa; padding: 10px; font-size: 0.8rem; text-transform: uppercase; }
     .stats-table td { padding: 15px 10px; border-bottom: 2px dashed #f0f0f0; font-size: 1.2rem; font-weight: 800; }
@@ -304,6 +306,10 @@
     <div id="view-analytics" class="hidden">
       <div class="analytics-container">
         <h3 style="text-align:center; color:var(--text); margin-top:0;">History Log</h3>
+        <div id="history-chart-wrap" class="hidden">
+          <canvas id="history-chart"></canvas>
+          <div class="chart-footnote">Last 21 days</div>
+        </div>
         <table class="stats-table">
           <thead>
             <tr><th>Period</th><th>🐻 Moe</th><th>🐱 Trish</th></tr>
@@ -388,7 +394,9 @@
       queryResults: document.getElementById("query-results"),
       queryText: document.getElementById("query-text"),
       queryChartWrap: document.getElementById("query-chart-wrap"),
-      queryChartCanvas: document.getElementById("query-chart")
+      queryChartCanvas: document.getElementById("query-chart"),
+      historyChartWrap: document.getElementById("history-chart-wrap"),
+      historyChartCanvas: document.getElementById("history-chart")
     };
 
     let allHistory = {};
@@ -1072,6 +1080,7 @@
     // Chart.js integration
     // -------------------------------
     let queryChart = null;
+    let historyChart = null;
 
     function destroyQueryChart() {
       if (queryChart) {
@@ -1079,6 +1088,14 @@
         queryChart = null;
       }
       if (el.queryChartWrap) el.queryChartWrap.classList.add("hidden");
+    }
+
+    function destroyHistoryChart() {
+      if (historyChart) {
+        historyChart.destroy();
+        historyChart = null;
+      }
+      if (el.historyChartWrap) el.historyChartWrap.classList.add("hidden");
     }
 
     function calcRangeSpanDays(range) {
@@ -1614,6 +1631,66 @@
     if (el.querySubmit) el.querySubmit.addEventListener("click", handleQuery);
     if (el.queryInput) el.queryInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleQuery(); });
 
+    // --- History chart (default view) ---
+    function renderHistoryChart() {
+      destroyHistoryChart();
+
+      if (!window.Chart || !el.historyChartCanvas || !el.historyChartWrap) return;
+
+      const moeColor = cssVar("--moe", "#6ab7ff");
+      const trishColor = cssVar("--trish", "#ff8da1");
+      const textColor = cssVar("--text", "#544a4a");
+
+      const now = new Date();
+      const endMs = now.getTime();
+      const startMs = startOfDayLocal(endMs) - (21 - 1) * DAY_MS; // last 21 days inclusive of today
+      const range = { startMs, endMs, label: "last 21 days" };
+
+      const agg = aggregate(["Moe", "Trish"], range, {});
+      const bucketed = buildTimeBucketsFromPerDay(agg.perDay, range);
+
+      // If no data, keep section hidden
+      const moeTotal = agg?.sums?.Moe || 0;
+      const trishTotal = agg?.sums?.Trish || 0;
+      if ((moeTotal + trishTotal) === 0 || !bucketed.labels.length) {
+        if (el.historyChartWrap) el.historyChartWrap.classList.add("hidden");
+        return;
+      }
+
+      const datasets = [
+        { label: "Moe", data: bucketed.series.map(s => s.Moe || 0), backgroundColor: moeColor, borderRadius: 12, borderSkipped: false },
+        { label: "Trish", data: bucketed.series.map(s => s.Trish || 0), backgroundColor: trishColor, borderRadius: 12, borderSkipped: false }
+      ];
+
+      el.historyChartWrap.classList.remove("hidden");
+      historyChart = new window.Chart(el.historyChartCanvas, {
+        type: "bar",
+        data: { labels: bucketed.labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: "bottom",
+              labels: { color: textColor, boxWidth: 14, boxHeight: 14, padding: 14, font: { weight: "800" } }
+            },
+            tooltip: {
+              enabled: true,
+              titleColor: "#fff",
+              bodyColor: "#fff",
+              callbacks: { labelTextColor: () => "#fff" }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
+            y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
+          },
+          animation: { duration: 450 }
+        }
+      });
+    }
+
     // --- View / Nav ---
     function switchTab(tab) {
       el.tabTracker.classList.toggle("active", tab === "tracker");
@@ -1738,6 +1815,7 @@
       allHistory = snapshot.val() || {};
       rebuildEventsCache();
       calculate();
+      renderHistoryChart();
     });
 
     // --- Auto-start ---
