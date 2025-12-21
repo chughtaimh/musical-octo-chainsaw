@@ -1148,10 +1148,13 @@
         },
         tooltip: {
           enabled: true,
-          titleColor: textColor,
-          bodyColor: textColor
-        }
-      };
+          titleColor: "#fff",
+          bodyColor: "#fff",
+          footerColor: "#fff",
+          callbacks: {
+            labelTextColor: () => "#fff"
+          }
+        };
 
       if (wantsPie) {
         el.queryChartWrap.classList.remove("hidden");
