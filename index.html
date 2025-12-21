@@ -823,12 +823,25 @@
         return { startMs: satThisWeek, endMs: Math.min(end, nowMs), label: "this weekend" };
       }
 
-      // Specific weekday references: "last friday", "this tuesday", "on monday"
+      // Specific weekday references: "last friday", "this tuesday", "next monday"
       const wd = qLower.match(/\b(last|this|next)\s+(sun(?:day)?|mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?)\b/);
       if (wd) {
         const mod = wd[1];
         const raw = wd[2].replace(/sday|nesday|rsday|urday/g, "");
         const target = DOW_ALIASES[raw];
+        if (target === undefined || target === null) return null;
+
+        const todayDow = new Date(todayStart).getDay();
+
+        // Fix: "last Tuesday" should mean the most recent Tuesday BEFORE today (not "previous calendar week")
+        if (mod === "last") {
+          let diff = (todayDow - target + 7) % 7;
+          if (diff === 0) diff = 7; // if today is Tuesday, "last Tuesday" = 7 days ago
+          const dayStart = todayStart - diff * DAY_MS;
+          return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `last ${DOW_FULL[target]}` };
+        }
+
+        // Keep "this" and "next" anchored to the calendar week (Mon-Sun)
         const weekStart = startOfWeekMonday(now);
         const offset = (target + 6) % 7; // Mon=0 ... Sun=6
         const dayStart = weekStart + offset * DAY_MS;
@@ -836,11 +849,9 @@
         if (mod === "this") {
           return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `this ${DOW_FULL[target]}` };
         }
-        if (mod === "next") {
-          return { startMs: dayStart + 7 * DAY_MS, endMs: dayStart + 8 * DAY_MS, label: `next ${DOW_FULL[target]}` };
-        }
-        // last
-        return { startMs: dayStart - 7 * DAY_MS, endMs: dayStart - 6 * DAY_MS, label: `last ${DOW_FULL[target]}` };
+
+        // next
+        return { startMs: dayStart + 7 * DAY_MS, endMs: dayStart + 8 * DAY_MS, label: `next ${DOW_FULL[target]}` };
       }
 
       // "On Friday" (most recent occurrence, including today if it matches)
