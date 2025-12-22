@@ -767,6 +767,14 @@
       return VALID_DRINK_TYPES.has(s) ? s : "other";
     }
 
+    function drinkTypeLabel(dt) {
+      const t = normalizeDrinkType(dt);
+      if (t === "wine") return "🍷 Wine";
+      if (t === "beer") return "🍺 Beer";
+      if (t === "cocktail") return "🍹 Cocktail";
+      return "✨ Other";
+    }
+
     function safeInt(n, fallback) {
       const x = (typeof n === "number") ? n : parseInt(String(n ?? ""), 10);
       if (!Number.isFinite(x) || isNaN(x)) return fallback;
@@ -823,7 +831,6 @@
       try {
         await set(ref(db, `weeklyPlans/${user}`), safe);
       } catch (err) {
-        // If write fails (permissions / offline), local cache still keeps UX stable
         console.warn("Failed to save weekly plan to Firebase:", err);
       }
     }
@@ -842,7 +849,6 @@
 
       if (el.btnSettings) el.btnSettings.classList.add("hidden");
 
-      // Gate the app until a profile is picked
       if (el.nav) el.nav.classList.add("hidden");
       if (el.viewTracker) el.viewTracker.classList.add("hidden");
       if (el.viewAnalytics) el.viewAnalytics.classList.add("hidden");
@@ -969,12 +975,11 @@
         else if (typeof rawV === "string" && rawV.trim() !== "" && Number.isFinite(Number(rawV))) v = Number(rawV);
         else v = 1;
 
-        // Normalize delta to a sane integer (supports legacy +1 and new -1 events)
         v = Math.trunc(v);
         if (v === 0) continue;
-        // If anything other than +-1 sneaks in, collapse to sign
         if (v !== 1 && v !== -1) v = v < 0 ? -1 : 1;
 
+        // Missing drinkType maps to "other"
         const drinkType = normalizeDrinkType(entry.drinkType || "other");
 
         const dayStart = startOfDayLocal(ts);
@@ -986,6 +991,13 @@
     }
 
     function parseIntent(qLower) {
+      const wantsCommonDrinkType =
+        /\bmost common\b.*\b(drink type|type of drink|drink)\b/.test(qLower) ||
+        /\bmost frequent\b.*\b(drink type|type of drink|drink)\b/.test(qLower) ||
+        /\bfavorite\b.*\b(drink type|type of drink|drink)\b/.test(qLower) ||
+        /\btop\b.*\b(drink type|type of drink|drink)\b/.test(qLower) ||
+        /\bcommonest\b.*\b(drink type|type of drink|drink)\b/.test(qLower);
+
       const wantsDaysCount = /\bhow many days\b|\bnumber of days\b|\bdays did\b/.test(qLower);
       const wantsAvg = /\baverage\b|\bavg\b|\bper day\b|\bdaily average\b/.test(qLower);
       const wantsDiff = /\bdifference\b|\bdiff\b|\bdelta\b|\bby how many\b|\bmargin\b/.test(qLower);
@@ -1000,7 +1012,8 @@
       const whoSignals = /^\s*who\b/.test(qLower) || /\bwho drank\b|\bwho had\b/.test(qLower);
 
       let type = "count";
-      if (wantsPeakDay) type = "peak_day";
+      if (wantsCommonDrinkType) type = "common_type";
+      else if (wantsPeakDay) type = "peak_day";
       else if (wantsDaysCount) type = "days_count";
       else if (wantsAvg) type = "average";
       else if (wantsDiff) type = "difference";
@@ -1018,7 +1031,6 @@
       const explicitMoe = /\bmoe\b/.test(qLower);
       const explicitTrish = /\btrish\b/.test(qLower);
 
-      // "me/my/I" resolves to the chosen profile
       const meSignals = /\b(me|my|mine|i|im|i'm|ive|i've)\b/.test(qLower);
 
       let hasMoe = explicitMoe;
@@ -1036,7 +1048,10 @@
       if (hasMoe) return { users: ["Moe"], mode: "single" };
       if (hasTrish) return { users: ["Trish"], mode: "single" };
 
-      if (intent.whoSignals) return { users: ["Moe", "Trish"], mode: "who" };
+      // PH2-2: For "most common drink type", default to the active (selected) user
+      if (intent?.type === "common_type" && selected) return { users: [selected], mode: "single" };
+
+      if (intent?.whoSignals) return { users: ["Moe", "Trish"], mode: "who" };
       return { users: ["Moe", "Trish"], mode: "both" };
     }
 
@@ -1437,10 +1452,12 @@
       return null;
     }
 
+    // PH2-2: aggregate can optionally build perType breakdown
     function aggregate(users, range, filters) {
       const startMs = range.startMs;
       const endMs = range.endMs;
       const dayFilter = filters?.dayFilter;
+      const includePerType = !!filters?.includePerType;
 
       const sums = {};
       const daySets = {};
@@ -1452,6 +1469,9 @@
       let total = 0;
       const perDay = new Map();
       const perDow = new Map();
+
+      // perType: Map<drinkType, { Moe:number, Trish:number, total:number }>
+      const perType = includePerType ? new Map() : null;
 
       const allowedDays = dayFilter?.days ? new Set(dayFilter.days) : null;
 
@@ -1476,9 +1496,18 @@
         const pw = perDow.get(e.dow);
         pw[e.user] = (pw[e.user] || 0) + e.v;
         pw.total += e.v;
+
+        if (perType) {
+          // Missing drinkType maps to "other"
+          const dt = normalizeDrinkType(e.drinkType || "other");
+          if (!perType.has(dt)) perType.set(dt, { Moe: 0, Trish: 0, total: 0 });
+          const pt = perType.get(dt);
+          pt[e.user] = (pt[e.user] || 0) + e.v;
+          pt.total += e.v;
+        }
       }
 
-      return { sums, total, perDay, perDow, daySets };
+      return { sums, total, perDay, perDow, daySets, perType };
     }
 
     function daysTouchedByRange(range, nowMs) {
@@ -1529,6 +1558,9 @@
 
     function renderChart(intent, userInfo, agg, range) {
       destroyQueryChart();
+
+      // PH2-2: common drink type answers should not render charts
+      if (intent?.type === "common_type") return;
 
       if (!window.Chart || !el.queryChartCanvas || !el.queryChartWrap) return;
 
@@ -1736,6 +1768,7 @@
       How many drinks did Moe have today?<br>
       How many drinks did Trish have in December 2025?<br>
       How many drinks both last week?<br>
+      Most common drink type last week<br>
       Moe 12/1-12/15<br>
       Weekends last month<br>
       Fridays this year for Moe<br>
@@ -1763,7 +1796,7 @@
       if (/\bstreak\b/.test(qLower)) {
         const who = (userInfo.users.length === 1) ? userInfo.users[0] : "Moe and Trish";
         setQueryResult(
-          `${who} streaks are not available in this build yet.<small>Tip: ask for drinks today, last week, or a date range.</small>`,
+          `${who} streaks are not available in this build yet.<small>Tip: ask for drinks today, last week, a date range, or "most common drink type last week".</small>`,
           true
         );
         return;
@@ -1792,7 +1825,7 @@
         return;
       }
 
-      const filters = { dayFilter };
+      const filters = { dayFilter, includePerType: intent.type === "common_type" };
       const agg = aggregate(userInfo.users, range, filters);
 
       const moeN = agg.sums["Moe"] || 0;
@@ -1805,6 +1838,53 @@
       function finish(html, ok) {
         setQueryResult(html, ok);
         if (ok) renderChart(intent, userInfo, agg, range);
+      }
+
+      // PH2-2: "most common drink type" (defaults to active user if none specified)
+      if (intent.type === "common_type") {
+        const perType = agg.perType;
+        if (!perType || perType.size === 0) {
+          finish(`No drinks logged in ${range.label}.${meta}`, true);
+          return;
+        }
+
+        const lines = [];
+        for (const u of userInfo.users) {
+          const totalForUser = Math.max(0, (agg.sums?.[u] || 0));
+          if (totalForUser <= 0) {
+            lines.push(`${u}: No drinks logged.`);
+            continue;
+          }
+
+          let best = 0;
+          let bestTypes = [];
+
+          for (const [dt, rec] of perType.entries()) {
+            const rawVal = rec?.[u] || 0;
+            const val = Math.max(0, rawVal);
+            if (val > best) {
+              best = val;
+              bestTypes = [dt];
+            } else if (val === best && val > 0) {
+              bestTypes.push(dt);
+            }
+          }
+
+          if (bestTypes.length === 0 || best <= 0) {
+            lines.push(`${u}: No drinks logged.`);
+            continue;
+          }
+
+          const labelList = bestTypes.map(t => drinkTypeLabel(t)).join(" and ");
+          lines.push(`${u}: ${labelList} (${best} of ${totalForUser})`);
+        }
+
+        const header = (userInfo.users.length === 1)
+          ? `${userInfo.users[0]}'s most common drink type in ${range.label}:`
+          : `Most common drink type in ${range.label}:`;
+
+        finish(`${header}<br>${lines.join("<br>")}${meta}`, true);
+        return;
       }
 
       if (intent.type === "comparison") {
@@ -1957,8 +2037,8 @@
         });
 
         const header = (days.length > maxLines)
-          ? `Day-by-day (showing last ${maxLines} days in range) for ${range.label}:`
-          : `Day-by-day for ${range.label}:`;
+          ? `Day by day (showing last ${maxLines} days in range) for ${range.label}:`
+          : `Day by day for ${range.label}:`;
 
         finish(`${header}<br>${rows.join("<br>")}${meta}`, true);
         return;
@@ -2283,7 +2363,6 @@
           weeklyPlans[u] = Math.min(99, Math.trunc(n));
           localStorage.setItem(weeklyPlanKeyFor(u), String(weeklyPlans[u]));
         } else if (!ensuredWeeklyPlansOnce) {
-          // If Firebase has no value yet, seed it from local cache or defaults
           try {
             await set(ref(db, `weeklyPlans/${u}`), getWeeklyPlan(u));
           } catch (err) {
@@ -2293,7 +2372,6 @@
       }
       ensuredWeeklyPlansOnce = true;
 
-      // If settings is open, keep UI in sync
       if (el.settingsModal && !el.settingsModal.classList.contains("hidden")) {
         syncSettingsUIFromState();
       }
