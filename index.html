@@ -45,7 +45,30 @@
       color: var(--trish);
       font-size: 1.2rem;
       z-index: 10;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
     }
+
+    #header-title{ flex:1; text-align:center; }
+
+    .icon-btn{
+      position:absolute;
+      right:14px;
+      top:14px;
+      width:44px;
+      height:44px;
+      border-radius:14px;
+      border:2px solid #eee;
+      background:#fff;
+      cursor:pointer;
+      font-size:1.2rem;
+      box-shadow:0 6px 14px rgba(149,157,165,0.12);
+      color:var(--text);
+    }
+    
+    .icon-btn:active{ transform:scale(0.98); }
 
     #app-content {
       flex: 1;
@@ -316,12 +339,104 @@
     .profile-btn.moe:hover { border-color: rgba(106, 183, 255, 0.6); background: rgba(106, 183, 255, 0.08); }
     .profile-btn.trish:hover { border-color: rgba(255, 141, 161, 0.6); background: rgba(255, 141, 161, 0.08); }
     .profile-emoji { font-size: 1.6rem; line-height: 1; }
+
+    /* Settings modal */
+    #settings-modal{
+      position:fixed;
+      inset:0;
+      z-index:220;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:22px;
+      box-sizing:border-box;
+    }
+    #settings-modal .settings-backdrop{
+      position:absolute;
+      inset:0;
+      background:rgba(255,255,255,0.75);
+      backdrop-filter:blur(10px);
+    }
+    #settings-modal .settings-card{
+      position:relative;
+      width:min(560px, 92vw);
+      background:#fff;
+      border-radius:26px;
+      box-shadow:var(--shadow);
+      border:2px solid #eee;
+      padding:22px;
+      text-align:left;
+    }
+    #settings-modal h2{
+      margin:6px 0 8px 0;
+      color:var(--text);
+      font-size:1.35rem;
+      text-align:center;
+    }
+    #settings-modal p{
+      margin:0 0 16px 0;
+      color:#888;
+      font-weight:800;
+      text-align:center;
+    }
+    .settings-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .settings-field{
+      background:#f9f9f9;
+      border:2px solid #eee;
+      border-radius:18px;
+      padding:12px;
+    }
+    .settings-field label{
+      display:block;
+      font-weight:900;
+      color:var(--text);
+      margin-bottom:8px;
+    }
+    .settings-field .hint{
+      display:block;
+      margin-top:8px;
+      color:#888;
+      font-weight:800;
+      font-size:0.9rem;
+    }
+    .settings-actions{
+      display:flex;
+      gap:12px;
+      margin-top:14px;
+    }
+    .btn-secondary{
+      padding:15px;
+      background:#f0f0f0;
+      color:var(--text);
+      border:2px solid #eee;
+      border-radius:18px;
+      font-size:1.1rem;
+      font-weight:900;
+      cursor:pointer;
+      flex:1;
+    }
+    .btn-secondary:active{ transform:scale(0.98); }
+    
+    /* Optional: show weekly target under counts */
+    .weekly-target{
+      margin-top:6px;
+      font-weight:900;
+      color:#888;
+    }
+    .weekly-target b{ color:var(--text); }
+    
   </style>
 </head>
 
 <body>
-  <header id="app-header">Welcome</header>
-
+  <header id="app-header">
+    <span id="header-title">Welcome</span>
+    <button id="btn-settings" class="icon-btn" aria-label="Settings" title="Settings">⚙️</button>
+  </header>
   <div id="app-content">
     <div id="view-login">
       <div class="login-card">
@@ -339,6 +454,7 @@
         <div class="avatar">🐻</div>
         <div class="user-name">Moe</div>
         <div class="count" id="c-moe">...</div>
+        <div class="weekly-target" id="weekly-target-moe">Weekly target: <b>0</b> (stay under)</div>
         <div class="controls">
           <button class="btn-round" onclick="logDrink({ user: 'Moe', drinkType: 'beer', delta: -1 })">−</button>
           <button class="btn-round plus" onclick="logDrink({ user: 'Moe', drinkType: 'beer', delta: 1 })">🍺</button>
@@ -349,6 +465,7 @@
         <div class="avatar">🐱</div>
         <div class="user-name">Trish</div>
         <div class="count" id="c-trish">...</div>
+        <div class="weekly-target" id="weekly-target-trish">Weekly target: <b>0</b> (stay under)</div>
         <div class="controls">
           <button class="btn-round" onclick="logDrink({ user: 'Trish', drinkType: 'cocktail', delta: -1 })">−</button>
           <button class="btn-round plus" onclick="logDrink({ user: 'Trish', drinkType: 'cocktail', delta: 1 })">🍹</button>
@@ -421,9 +538,38 @@
     </div>
   </div>
 
+  <!-- ADD this modal markup near your other modals (right after the profile modal is a good place) -->
+  <div id="settings-modal" class="hidden" aria-hidden="true">
+    <div class="settings-backdrop"></div>
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">Weekly target</h2>
+      <p>Set a weekly drinks target for each person. The goal is to stay under it.</p>
+  
+      <div class="settings-grid">
+        <div class="settings-field">
+          <label for="weekly-moe">🐻 Moe weekly target</label>
+          <input id="weekly-moe" inputmode="numeric" pattern="[0-9]*" placeholder="0" />
+          <span class="hint">This target is saved for all devices and logins.</span>
+        </div>
+  
+        <div class="settings-field">
+          <label for="weekly-trish">🐱 Trish weekly target</label>
+          <input id="weekly-trish" inputmode="numeric" pattern="[0-9]*" placeholder="0" />
+          <span class="hint">This target is saved for all devices and logins.</span>
+        </div>
+      </div>
+  
+      <div class="settings-actions">
+        <button id="btn-settings-cancel" class="btn-secondary" type="button">Close</button>
+        <button id="btn-settings-save" class="btn-main" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     // --- Firebase ---
     const firebaseConfig = {
@@ -440,6 +586,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const historyRef = ref(db, "history");
+    const weeklyTargetsRef = ref(db, "settings/weeklyTargets");
+    let weeklyTargets = { Moe: 0, Trish: 0 };
 
     // --- Local storage keys ---
     const LS = {
@@ -476,6 +624,18 @@
       profileModal: document.getElementById("profile-modal"),
       btnProfileMoe: document.getElementById("btn-profile-moe"),
       btnProfileTrish: document.getElementById("btn-profile-trish")
+
+      headerTitle: document.getElementById("header-title"),
+      btnSettings: document.getElementById("btn-settings"),
+      
+      settingsModal: document.getElementById("settings-modal"),
+      weeklyMoe: document.getElementById("weekly-moe"),
+      weeklyTrish: document.getElementById("weekly-trish"),
+      btnSettingsCancel: document.getElementById("btn-settings-cancel"),
+      btnSettingsSave: document.getElementById("btn-settings-save"),
+      
+      weeklyTargetMoe: document.getElementById("weekly-target-moe"),
+      weeklyTargetTrish: document.getElementById("weekly-target-trish"),
     };
 
     let allHistory = {};
@@ -549,13 +709,56 @@
       if (el.nav) el.nav.classList.add("hidden");
       if (el.viewTracker) el.viewTracker.classList.add("hidden");
       if (el.viewAnalytics) el.viewAnalytics.classList.add("hidden");
-      if (el.header) el.header.innerText = "Who are you?";
+      if (el.headerTitle) el.headerTitle.innerText = "Who are you?";
     }
 
     function hideProfileModal() {
       if (!el.profileModal) return;
       el.profileModal.classList.add("hidden");
       el.profileModal.setAttribute("aria-hidden", "true");
+    }
+
+    /* ADD these helper functions anywhere in the module (near other modal helpers is fine) */
+    function clampInt(n, min, max) {
+      const x = Number.parseInt(String(n ?? "").replace(/[^\d]/g, ""), 10);
+      if (!Number.isFinite(x)) return min;
+      return Math.min(max, Math.max(min, x));
+    }
+    
+    function applyWeeklyTargetsUI() {
+      const m = Number.isFinite(weeklyTargets.Moe) ? weeklyTargets.Moe : 0;
+      const t = Number.isFinite(weeklyTargets.Trish) ? weeklyTargets.Trish : 0;
+    
+      if (el.weeklyTargetMoe) el.weeklyTargetMoe.innerHTML = `Weekly target: <b>${m}</b> (stay under)`;
+      if (el.weeklyTargetTrish) el.weeklyTargetTrish.innerHTML = `Weekly target: <b>${t}</b> (stay under)`;
+    
+      if (el.weeklyMoe) el.weeklyMoe.value = String(m);
+      if (el.weeklyTrish) el.weeklyTrish.value = String(t);
+    }
+    
+    function showSettingsModal() {
+      if (!el.settingsModal) return;
+      applyWeeklyTargetsUI();
+      el.settingsModal.classList.remove("hidden");
+      el.settingsModal.setAttribute("aria-hidden", "false");
+    }
+    
+    function hideSettingsModal() {
+      if (!el.settingsModal) return;
+      el.settingsModal.classList.add("hidden");
+      el.settingsModal.setAttribute("aria-hidden", "true");
+    }
+    
+    async function saveWeeklyTargetsToFirebase() {
+      const moe = clampInt(el.weeklyMoe?.value, 0, 99);
+      const trish = clampInt(el.weeklyTrish?.value, 0, 99);
+    
+      // Persist across logins/devices
+      await set(weeklyTargetsRef, { Moe: moe, Trish: trish });
+    
+      // Local UI will also update from onValue, but do it immediately for snappiness
+      weeklyTargets = { Moe: moe, Trish: trish };
+      applyWeeklyTargetsUI();
     }
 
     function cssVar(name, fallback = "") {
@@ -1726,7 +1929,7 @@
       el.viewTracker.classList.toggle("hidden", tab !== "tracker");
       el.viewAnalytics.classList.toggle("hidden", tab !== "analytics");
 
-      el.header.innerText = tab === "tracker" ? "Check in" : "History";
+      if (el.headerTitle) el.headerTitle.innerText = tab === "tracker" ? "Check in" : "History";
     }
     window.switchTab = switchTab;
 
@@ -1778,6 +1981,17 @@
 
     el.btnLogin.addEventListener("click", login);
     el.pass.addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+
+    if (el.btnSettings) el.btnSettings.addEventListener("click", () => showSettingsModal());
+    if (el.btnSettingsCancel) el.btnSettingsCancel.addEventListener("click", () => hideSettingsModal());
+    if (el.btnSettingsSave) el.btnSettingsSave.addEventListener("click", async () => {
+      try {
+        await saveWeeklyTargetsToFirebase();
+        hideSettingsModal();
+      } catch (e) {
+        alert("Could not save settings. Try again.");
+      }
+    });
 
     function shakeCard(card) {
       if (!card) return;
@@ -1900,6 +2114,17 @@
       calculate();
       renderHistoryChart();
     });
+
+    /* ADD this RTDB listener next to your existing onValue(historyRef, ...) listener */
+    onValue(weeklyTargetsRef, (snapshot) => {
+      const v = snapshot.val() || {};
+      weeklyTargets = {
+        Moe: (typeof v.Moe === "number" && Number.isFinite(v.Moe)) ? v.Moe : 0,
+        Trish: (typeof v.Trish === "number" && Number.isFinite(v.Trish)) ? v.Trish : 0
+      };
+      applyWeeklyTargetsUI();
+    });
+
 
     if (localStorage.getItem(LS.auth) === "Moetrin") startApp();
   </script>
