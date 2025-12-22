@@ -302,7 +302,7 @@
             <tr><td>Today</td><td class="val-moe" id="stat-day-moe">0</td><td class="val-trish" id="stat-day-trish">0</td></tr>
             <tr><td>7 Days</td><td class="val-moe" id="stat-week-moe">0</td><td class="val-trish" id="stat-week-trish">0</td></tr>
             <tr><td>30 Days</td><td class="val-moe" id="stat-month-moe">0</td><td class="val-trish" id="stat-month-trish">0</td></tr>
-            <tr><td>All Time</td><td class="val-moe" id="stat-all-moe">0</td><td class="val-trish" id="stat-all-trish">0</td></tr>
+            <tr class="hidden"><td>All Time</td><td class="val-moe" id="stat-all-moe">0</td><td class="val-trish" id="stat-all-trish">0</td></tr>
           </tbody>
         </table>
       </div>
@@ -310,7 +310,7 @@
       <div class="query-container">
         <h3 style="text-align:center; color:var(--text); margin-top:0;">Ask the Log</h3>
         <div class="query-row">
-          <input type="text" id="query-input" placeholder="Ask a question... (ex: How many drinks last week? Moe 12/1-12/15? Weekends last month?)" />
+          <input type="text" id="query-input" placeholder="Ask a question... (ex: Drinks today? Moe 12/1-12/15? Weekends last month?)" />
           <button id="query-submit" class="btn-main btn-query">Ask</button>
         </div>
 
@@ -322,8 +322,6 @@
           </div>
         </div>
       </div>
-
-      <div style="text-align:center; margin-top:40px; color:#aaa; font-size:0.8rem;">Ganbatte! (Do your best!)</div>
     </div>
   </div>
 
@@ -384,7 +382,7 @@
     };
 
     let allHistory = {};
-    let eventsCache = []; // normalized events for fast querying
+    let eventsCache = [];
 
     const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -459,11 +457,10 @@
       return x.getTime();
     }
 
-    // ISO-style week start: Monday 00:00 local
     function startOfWeekMonday(dOrMs) {
       const dayStart = startOfDayLocal(dOrMs);
-      const day = new Date(dayStart).getDay(); // 0 Sun, 1 Mon, ..., 6 Sat
-      const diff = (day + 6) % 7; // Monday -> 0, Sunday -> 6
+      const day = new Date(dayStart).getDay();
+      const diff = (day + 6) % 7;
       return dayStart - diff * DAY_MS;
     }
 
@@ -495,7 +492,6 @@
       return numberWords[t] ?? null;
     }
 
-    // --- Rebuild normalized events cache whenever history changes ---
     function rebuildEventsCache() {
       const out = [];
       for (const entry of Object.values(allHistory || {})) {
@@ -513,7 +509,6 @@
       eventsCache = out;
     }
 
-    // --- Intent parsing ---
     function parseIntent(qLower) {
       const wantsDaysCount = /\bhow many days\b|\bnumber of days\b|\bdays did\b/.test(qLower);
       const wantsAvg = /\baverage\b|\bavg\b|\bper day\b|\bdaily average\b/.test(qLower);
@@ -526,7 +521,6 @@
         /\bvs\b|\bversus\b|\bcompare\b|\bwho (won|wins|had more|drank more)\b|\bmore than\b|\bless than\b|\bbeat\b|\bwinner\b/.test(qLower) ||
         (/\bwho\b/.test(qLower) && /\bmore\b|\bmost\b/.test(qLower));
 
-      // "Who drank yesterday?" style
       const whoSignals = /^\s*who\b/.test(qLower) || /\bwho drank\b|\bwho had\b/.test(qLower);
 
       let type = "count";
@@ -542,7 +536,6 @@
       return { type, breakdownMode, whoSignals };
     }
 
-    // --- User parsing ---
     function parseUsers(qLower, intent) {
       const hasMoe = /\bmoe\b/.test(qLower) || /\bme\b/.test(qLower) || /\bmy\b/.test(qLower);
       const hasTrish = /\btrish\b/.test(qLower);
@@ -554,11 +547,9 @@
       if (hasTrish) return { users: ["Trish"], mode: "single" };
 
       if (intent.whoSignals) return { users: ["Moe", "Trish"], mode: "who" };
-
       return { users: ["Moe", "Trish"], mode: "both" };
     }
 
-    // --- Day-of-week filter parsing (weekends, weekdays, Wed-Fri, Fridays) ---
     function expandDowRange(d1, d2) {
       const order = [1,2,3,4,5,6,0];
       const i1 = order.indexOf(d1);
@@ -603,7 +594,6 @@
       return null;
     }
 
-    // --- Date parsing helpers ---
     function inferYearForMonthDay(monthIdx, day, now, opts = {}) {
       const nowY = now.getFullYear();
       const todayStart = startOfDayLocal(now);
@@ -706,7 +696,6 @@
       return deduped;
     }
 
-    // --- Month range parsing ---
     function parseMonthRange(qLower, now) {
       let monthIdx = null;
 
@@ -748,7 +737,6 @@
       return { startMs: start, endMs: end, label: `${monthNameFromIndex(monthIdx)} ${year}` };
     }
 
-    // --- Named / relative range parsing ---
     function parseNamedRange(qLower, now, ctx) {
       const nowMs = now.getTime();
       const todayStart = startOfDayLocal(now);
@@ -961,7 +949,6 @@
       return null;
     }
 
-    // --- Aggregation engine ---
     function aggregate(users, range, filters) {
       const startMs = range.startMs;
       const endMs = range.endMs;
@@ -1012,9 +999,6 @@
       return Math.max(1, Math.round((end - start) / DAY_MS));
     }
 
-    // -------------------------------
-    // Chart.js integration
-    // -------------------------------
     let queryChart = null;
     let historyChart = null;
 
@@ -1150,15 +1134,8 @@
             maintainAspectRatio: false,
             plugins: commonPlugins,
             scales: {
-              x: {
-                grid: { display: false },
-                ticks: { color: textColor, font: { weight: "800" } }
-              },
-              y: {
-                beginAtZero: true,
-                grid: { display: false },
-                ticks: { color: textColor, font: { weight: "800" }, precision: 0 }
-              }
+              x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" } } },
+              y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
             },
             animation: { duration: 450 }
           }
@@ -1178,20 +1155,8 @@
             borderSkipped: false
           }]
         : [
-            {
-              label: "Moe",
-              data: bucketed.series.map(s => s.Moe || 0),
-              backgroundColor: moeColor,
-              borderRadius: 12,
-              borderSkipped: false
-            },
-            {
-              label: "Trish",
-              data: bucketed.series.map(s => s.Trish || 0),
-              backgroundColor: trishColor,
-              borderRadius: 12,
-              borderSkipped: false
-            }
+            { label: "Moe", data: bucketed.series.map(s => s.Moe || 0), backgroundColor: moeColor, borderRadius: 12, borderSkipped: false },
+            { label: "Trish", data: bucketed.series.map(s => s.Trish || 0), backgroundColor: trishColor, borderRadius: 12, borderSkipped: false }
           ];
 
       el.queryChartWrap.classList.remove("hidden");
@@ -1203,20 +1168,8 @@
           maintainAspectRatio: false,
           plugins: commonPlugins,
           scales: {
-            x: {
-              grid: { display: false },
-              ticks: {
-                color: textColor,
-                font: { weight: "800" },
-                maxRotation: 0,
-                autoSkip: true
-              }
-            },
-            y: {
-              beginAtZero: true,
-              grid: { display: false },
-              ticks: { color: textColor, font: { weight: "800" }, precision: 0 }
-            }
+            x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
+            y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
           },
           animation: { duration: 450 }
         }
@@ -1594,7 +1547,6 @@
       });
     }
 
-    // --- View / Nav ---
     function switchTab(tab) {
       el.tabTracker.classList.toggle("active", tab === "tracker");
       el.tabAnalytics.classList.toggle("active", tab === "analytics");
@@ -1617,7 +1569,6 @@
       }
     }
 
-    // --- Auth ---
     function login() {
       if (el.pass.value === "Moetrin") {
         localStorage.setItem("auth_token", "Moetrin");
@@ -1631,7 +1582,6 @@
     el.btnLogin.addEventListener("click", login);
     el.pass.addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
 
-    // --- Drinks ---
     function addDrink(user, amount) {
       const card = user === "Moe" ? el.cardMoe : el.cardTrish;
 
@@ -1665,7 +1615,6 @@
     }
     window.addDrink = addDrink;
 
-    // --- Stats (tracker + summary table) ---
     function updateText(id, val) {
       const node = document.getElementById(id);
       if (node) node.innerText = String(val);
@@ -1705,7 +1654,6 @@
       updateText("stat-all-trish", stats.trish.all);
     }
 
-    // --- Realtime listener ---
     onValue(historyRef, (snapshot) => {
       allHistory = snapshot.val() || {};
       rebuildEventsCache();
@@ -1713,7 +1661,6 @@
       renderHistoryChart();
     });
 
-    // --- Auto-start ---
     if (localStorage.getItem("auth_token") === "Moetrin") startApp();
   </script>
 </body>
