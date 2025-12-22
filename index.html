@@ -173,6 +173,8 @@
       background: #f0f0f0;
       color: #888;
       touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
     }
     .btn-round:active { transform: translateY(4px); box-shadow: none; }
     .moe .plus { background: var(--moe); color: white; box-shadow: 0 5px 0 #4a90e2; }
@@ -506,6 +508,140 @@
       touch-action: manipulation;
     }
     .btn-primary:active { transform: scale(0.98); }
+
+    /* Bottom sheet modals (PH2-3) */
+    .sheet-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 230;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+      box-sizing: border-box;
+    }
+    .sheet-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(10px);
+    }
+    .sheet-card {
+      position: relative;
+      width: min(640px, 94vw);
+      background: #fff;
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      border: 2px solid #eee;
+      padding: 16px;
+      transform: translateY(0);
+      max-height: min(70vh, 520px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .sheet-title {
+      margin: 0;
+      font-weight: 900;
+      font-size: 1.15rem;
+      color: var(--text);
+    }
+    .sheet-subtitle {
+      margin: 0 0 12px 0;
+      color: #888;
+      font-weight: 800;
+      font-size: 0.95rem;
+      line-height: 1.25;
+    }
+
+    .type-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .type-btn {
+      min-height: 56px;
+      border-radius: 18px;
+      border: 2px solid #eee;
+      background: #f9f9f9;
+      box-shadow: 0 6px 14px rgba(149, 157, 165, 0.12);
+      cursor: pointer;
+      font-weight: 900;
+      color: var(--text);
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .type-btn:active { transform: scale(0.99); }
+
+    .adjust-rows {
+      display: grid;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .adjust-row {
+      border: 2px solid #eee;
+      border-radius: 18px;
+      padding: 12px;
+      background: #fafafa;
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      align-items: center;
+      gap: 10px;
+    }
+    .adjust-label {
+      font-weight: 900;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .adjust-count {
+      min-width: 36px;
+      text-align: center;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      background: #fff;
+      border: 2px dashed #eee;
+      border-radius: 12px;
+      padding: 8px 10px;
+    }
+    .mini-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      border: 2px solid #eee;
+      background: #fff;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(149, 157, 165, 0.12);
+      font-size: 1.35rem;
+      font-weight: 900;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .mini-btn:active { transform: scale(0.98); }
+    .mini-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
   </style>
 </head>
 
@@ -533,8 +669,8 @@
         <div class="user-name">Moe</div>
         <div class="count" id="c-moe">...</div>
         <div class="controls">
-          <button class="btn-round" onclick="logDrinkAction('Moe','beer',-1)">−</button>
-          <button class="btn-round plus" onclick="logDrinkAction('Moe','beer',1)">🍺</button>
+          <button id="btn-moe-minus" class="btn-round" type="button" aria-label="Moe minus">−</button>
+          <button id="btn-moe-plus" class="btn-round plus" type="button" aria-label="Moe plus">🍺</button>
         </div>
       </div>
 
@@ -543,8 +679,8 @@
         <div class="user-name">Trish</div>
         <div class="count" id="c-trish">...</div>
         <div class="controls">
-          <button class="btn-round" onclick="logDrinkAction('Trish','cocktail',-1)">−</button>
-          <button class="btn-round plus" onclick="logDrinkAction('Trish','cocktail',1)">🍹</button>
+          <button id="btn-trish-minus" class="btn-round" type="button" aria-label="Trish minus">−</button>
+          <button id="btn-trish-plus" class="btn-round plus" type="button" aria-label="Trish plus">🍹</button>
         </div>
       </div>
     </div>
@@ -648,6 +784,41 @@
     </div>
   </div>
 
+  <!-- PH2-3: Drink type picker bottom sheet -->
+  <div id="drinktype-modal" class="sheet-modal hidden" aria-hidden="true">
+    <div class="sheet-backdrop" data-sheet-close="drinktype"></div>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="drinktype-title">
+      <div class="sheet-header">
+        <h2 id="drinktype-title" class="sheet-title">What did you have?</h2>
+        <button id="btn-drinktype-close" class="btn-close" type="button" aria-label="Close">✕</button>
+      </div>
+      <p class="sheet-subtitle">Pick a type. It will save as your default and log 1 instantly.</p>
+
+      <div class="type-grid" id="drinktype-choices">
+        <button class="type-btn" type="button" data-type="beer">🍺 Beer</button>
+        <button class="type-btn" type="button" data-type="wine">🍷 Wine</button>
+        <button class="type-btn" type="button" data-type="cocktail">🍹 Cocktail</button>
+        <button class="type-btn" type="button" data-type="other">✨ Other</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PH2-3: Adjust today bottom sheet -->
+  <div id="adjusttoday-modal" class="sheet-modal hidden" aria-hidden="true" style="z-index:235;">
+    <div class="sheet-backdrop" data-sheet-close="adjusttoday"></div>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="adjusttoday-title">
+      <div class="sheet-header">
+        <h2 id="adjusttoday-title" class="sheet-title">Adjust today</h2>
+        <button id="btn-adjusttoday-close" class="btn-close" type="button" aria-label="Close">✕</button>
+      </div>
+      <p class="sheet-subtitle">Per type counts are for today only.</p>
+
+      <div id="adjusttoday-rows" class="adjust-rows">
+        <!-- JS renders rows -->
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -676,7 +847,11 @@
       selectedUser: "selected_user",
       // Kept as a local fallback cache (Firebase is source of truth now)
       weeklyPlanMoe: "weekly_plan_Moe",
-      weeklyPlanTrish: "weekly_plan_Trish"
+      weeklyPlanTrish: "weekly_plan_Trish",
+
+      // PH2-3
+      lastDrinkTypeMoe: "last_drink_type_Moe",
+      lastDrinkTypeTrish: "last_drink_type_Trish"
     };
 
     const DEFAULT_WEEKLY_PLAN = 14;
@@ -700,6 +875,12 @@
       cardMoe: document.getElementById("card-moe"),
       cardTrish: document.getElementById("card-trish"),
 
+      // PH2-3 tracker controls
+      btnMoePlus: document.getElementById("btn-moe-plus"),
+      btnMoeMinus: document.getElementById("btn-moe-minus"),
+      btnTrishPlus: document.getElementById("btn-trish-plus"),
+      btnTrishMinus: document.getElementById("btn-trish-minus"),
+
       queryInput: document.getElementById("query-input"),
       querySubmit: document.getElementById("query-submit"),
       queryResults: document.getElementById("query-results"),
@@ -720,7 +901,17 @@
       btnSwitchMoe: document.getElementById("btn-switch-moe"),
       btnSwitchTrish: document.getElementById("btn-switch-trish"),
       weeklyPlanInput: document.getElementById("weekly-plan-input"),
-      planHint: document.getElementById("plan-hint")
+      planHint: document.getElementById("plan-hint"),
+
+      // PH2-3 modals
+      drinkTypeModal: document.getElementById("drinktype-modal"),
+      btnDrinkTypeClose: document.getElementById("btn-drinktype-close"),
+      drinkTypeChoices: document.getElementById("drinktype-choices"),
+
+      adjustTodayModal: document.getElementById("adjusttoday-modal"),
+      btnAdjustTodayClose: document.getElementById("btn-adjusttoday-close"),
+      adjustTodayTitle: document.getElementById("adjusttoday-title"),
+      adjustTodayRows: document.getElementById("adjusttoday-rows")
     };
 
     let allHistory = {};
@@ -773,6 +964,14 @@
       if (t === "beer") return "🍺 Beer";
       if (t === "cocktail") return "🍹 Cocktail";
       return "✨ Other";
+    }
+
+    function drinkTypeEmoji(dt) {
+      const t = normalizeDrinkType(dt);
+      if (t === "wine") return "🍷";
+      if (t === "beer") return "🍺";
+      if (t === "cocktail") return "🍹";
+      return "✨";
     }
 
     function safeInt(n, fallback) {
@@ -1048,7 +1247,7 @@
       if (hasMoe) return { users: ["Moe"], mode: "single" };
       if (hasTrish) return { users: ["Trish"], mode: "single" };
 
-      // PH2-2: For "most common drink type", default to the active (selected) user
+      // For "most common drink type", default to the active (selected) user
       if (intent?.type === "common_type" && selected) return { users: [selected], mode: "single" };
 
       if (intent?.whoSignals) return { users: ["Moe", "Trish"], mode: "who" };
@@ -1452,7 +1651,7 @@
       return null;
     }
 
-    // PH2-2: aggregate can optionally build perType breakdown
+    // Aggregate helper
     function aggregate(users, range, filters) {
       const startMs = range.startMs;
       const endMs = range.endMs;
@@ -1470,7 +1669,6 @@
       const perDay = new Map();
       const perDow = new Map();
 
-      // perType: Map<drinkType, { Moe:number, Trish:number, total:number }>
       const perType = includePerType ? new Map() : null;
 
       const allowedDays = dayFilter?.days ? new Set(dayFilter.days) : null;
@@ -1498,7 +1696,6 @@
         pw.total += e.v;
 
         if (perType) {
-          // Missing drinkType maps to "other"
           const dt = normalizeDrinkType(e.drinkType || "other");
           if (!perType.has(dt)) perType.set(dt, { Moe: 0, Trish: 0, total: 0 });
           const pt = perType.get(dt);
@@ -1556,12 +1753,76 @@
       return `${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getFullYear()}`;
     }
 
+    function buildTimeBucketsFromPerDay(perDayMap, range) {
+      const startDay = startOfDayLocal(range.startMs);
+      const endDay = startOfDayLocal(Math.max(range.startMs, range.endMs - 1));
+      const spanDays = Math.max(1, Math.round((endDay - startDay) / DAY_MS) + 1);
+
+      let mode = "day";
+      if (spanDays > 90) mode = "month";
+      else if (spanDays > 30) mode = "week";
+
+      const bucketKeys = [];
+      const labels = [];
+      const bucketMap = new Map();
+
+      function ensureBucket(key, label) {
+        if (!bucketMap.has(key)) bucketMap.set(key, { Moe: 0, Trish: 0, total: 0 });
+        bucketKeys.push(key);
+        labels.push(label);
+      }
+
+      if (mode === "day") {
+        for (let t = startDay; t <= endDay; t += DAY_MS) ensureBucket(t, labelForDay(t));
+      } else if (mode === "week") {
+        let t = startOfWeekMonday(startDay);
+        const endW = startOfWeekMonday(endDay);
+        for (; t <= endW; t += 7 * DAY_MS) ensureBucket(t, labelForWeek(t));
+      } else {
+        const s = new Date(startDay);
+        s.setDate(1); s.setHours(0,0,0,0);
+        const e = new Date(endDay);
+        e.setDate(1); e.setHours(0,0,0,0);
+
+        let y = s.getFullYear();
+        let m = s.getMonth();
+        const endY = e.getFullYear();
+        const endM = e.getMonth();
+
+        while (y < endY || (y === endY && m <= endM)) {
+          const t = new Date(y, m, 1, 0, 0, 0, 0).getTime();
+          ensureBucket(t, labelForMonth(t));
+          m += 1;
+          if (m > 11) { m = 0; y += 1; }
+        }
+      }
+
+      for (const [dayStart, rec] of perDayMap.entries()) {
+        if (dayStart < startDay || dayStart > endDay) continue;
+
+        let key;
+        if (mode === "day") key = dayStart;
+        else if (mode === "week") key = startOfWeekMonday(dayStart);
+        else {
+          const d = new Date(dayStart);
+          key = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0).getTime();
+        }
+
+        if (!bucketMap.has(key)) continue;
+        const b = bucketMap.get(key);
+        b.Moe += rec.Moe || 0;
+        b.Trish += rec.Trish || 0;
+        b.total += rec.total || 0;
+      }
+
+      const series = bucketKeys.map(k => bucketMap.get(k) || { Moe: 0, Trish: 0, total: 0 });
+      return { mode, labels, series, spanDays };
+    }
+
     function renderChart(intent, userInfo, agg, range) {
       destroyQueryChart();
 
-      // PH2-2: common drink type answers should not render charts
       if (intent?.type === "common_type") return;
-
       if (!window.Chart || !el.queryChartCanvas || !el.queryChartWrap) return;
 
       const moeTotal = agg?.sums?.Moe || 0;
@@ -1696,72 +1957,6 @@
       });
     }
 
-    function buildTimeBucketsFromPerDay(perDayMap, range) {
-      const startDay = startOfDayLocal(range.startMs);
-      const endDay = startOfDayLocal(Math.max(range.startMs, range.endMs - 1));
-      const spanDays = Math.max(1, Math.round((endDay - startDay) / DAY_MS) + 1);
-
-      let mode = "day";
-      if (spanDays > 90) mode = "month";
-      else if (spanDays > 30) mode = "week";
-
-      const bucketKeys = [];
-      const labels = [];
-      const bucketMap = new Map();
-
-      function ensureBucket(key, label) {
-        if (!bucketMap.has(key)) bucketMap.set(key, { Moe: 0, Trish: 0, total: 0 });
-        bucketKeys.push(key);
-        labels.push(label);
-      }
-
-      if (mode === "day") {
-        for (let t = startDay; t <= endDay; t += DAY_MS) ensureBucket(t, labelForDay(t));
-      } else if (mode === "week") {
-        let t = startOfWeekMonday(startDay);
-        const endW = startOfWeekMonday(endDay);
-        for (; t <= endW; t += 7 * DAY_MS) ensureBucket(t, labelForWeek(t));
-      } else {
-        const s = new Date(startDay);
-        s.setDate(1); s.setHours(0,0,0,0);
-        const e = new Date(endDay);
-        e.setDate(1); e.setHours(0,0,0,0);
-
-        let y = s.getFullYear();
-        let m = s.getMonth();
-        const endY = e.getFullYear();
-        const endM = e.getMonth();
-
-        while (y < endY || (y === endY && m <= endM)) {
-          const t = new Date(y, m, 1, 0, 0, 0, 0).getTime();
-          ensureBucket(t, labelForMonth(t));
-          m += 1;
-          if (m > 11) { m = 0; y += 1; }
-        }
-      }
-
-      for (const [dayStart, rec] of perDayMap.entries()) {
-        if (dayStart < startDay || dayStart > endDay) continue;
-
-        let key;
-        if (mode === "day") key = dayStart;
-        else if (mode === "week") key = startOfWeekMonday(dayStart);
-        else {
-          const d = new Date(dayStart);
-          key = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0).getTime();
-        }
-
-        if (!bucketMap.has(key)) continue;
-        const b = bucketMap.get(key);
-        b.Moe += rec.Moe || 0;
-        b.Trish += rec.Trish || 0;
-        b.total += rec.total || 0;
-      }
-
-      const series = bucketKeys.map(k => bucketMap.get(k) || { Moe: 0, Trish: 0, total: 0 });
-      return { mode, labels, series, spanDays };
-    }
-
     const EXAMPLES_HTML = `
       Try questions like:<small>
       How many drinks did I have today?<br>
@@ -1840,7 +2035,6 @@
         if (ok) renderChart(intent, userInfo, agg, range);
       }
 
-      // PH2-2: "most common drink type" (defaults to active user if none specified)
       if (intent.type === "common_type") {
         const perType = agg.perType;
         if (!perType || perType.size === 0) {
@@ -2136,6 +2330,68 @@
     }
     window.switchTab = switchTab;
 
+    // PH2-3: last drink type persistence
+    function lastDrinkTypeKeyFor(user) {
+      return user === "Trish" ? LS.lastDrinkTypeTrish : LS.lastDrinkTypeMoe;
+    }
+
+    function getLastDrinkType(user) {
+      const key = lastDrinkTypeKeyFor(user);
+      const raw = localStorage.getItem(key);
+      const normalized = normalizeDrinkType(raw);
+
+      const fallback = (user === "Trish") ? "cocktail" : "beer";
+      if (!raw || normalizeDrinkType(raw) !== normalized || normalized === "other" && normalizeDrinkType(raw) !== "other") {
+        // If missing or invalid, do not break the flow
+      }
+
+      if (!raw || !VALID_DRINK_TYPES.has(String(raw).toLowerCase())) {
+        localStorage.setItem(key, fallback);
+        return fallback;
+      }
+
+      // Valid
+      return normalized || fallback;
+    }
+
+    function setLastDrinkType(user, type) {
+      const key = lastDrinkTypeKeyFor(user);
+      const dt = normalizeDrinkType(type);
+      localStorage.setItem(key, dt);
+      updatePlusButtonIcon(user);
+    }
+
+    function updatePlusButtonIcon(user) {
+      const dt = getLastDrinkType(user);
+      const emoji = drinkTypeEmoji(dt);
+      if (user === "Moe" && el.btnMoePlus) el.btnMoePlus.textContent = emoji;
+      if (user === "Trish" && el.btnTrishPlus) el.btnTrishPlus.textContent = emoji;
+    }
+
+    function ensureLastDrinkTypeDefaults() {
+      if (!localStorage.getItem(LS.lastDrinkTypeMoe)) localStorage.setItem(LS.lastDrinkTypeMoe, "beer");
+      if (!localStorage.getItem(LS.lastDrinkTypeTrish)) localStorage.setItem(LS.lastDrinkTypeTrish, "cocktail");
+    }
+    ensureLastDrinkTypeDefaults();
+
+    function shakeCard(user) {
+      const card = user === "Moe" ? el.cardMoe : el.cardTrish;
+      if (!card) return;
+      card.style.transform = "translateX(5px)";
+      setTimeout(() => (card.style.transform = "translateX(-5px)"), 50);
+      setTimeout(() => (card.style.transform = "none"), 100);
+    }
+
+    function showKanpaiPop(user) {
+      const card = user === "Moe" ? el.cardMoe : el.cardTrish;
+      if (!card) return;
+      const pop = document.createElement("div");
+      pop.className = "kanpai-pop";
+      pop.innerText = "🍻 Kanpai!";
+      card.appendChild(pop);
+      setTimeout(() => pop.remove(), 800);
+    }
+
     function bootApp() {
       hideProfileModal();
       hideSettingsModal();
@@ -2145,6 +2401,9 @@
       switchTab("tracker");
 
       if (el.btnSettings) el.btnSettings.classList.remove("hidden");
+
+      updatePlusButtonIcon("Moe");
+      updatePlusButtonIcon("Trish");
 
       if (el.queryText && el.queryText.innerHTML.trim() === "") {
         setQueryResult(EXAMPLES_HTML, false);
@@ -2251,8 +2510,64 @@
       });
     }
 
+    // PH2-3: today helpers
+    function getTodayStartMs() {
+      return startOfDayLocal(Date.now());
+    }
+
+    function getTodayCountsByType(user) {
+      const todayStart = getTodayStartMs();
+      const out = { beer: 0, wine: 0, cocktail: 0, other: 0, total: 0 };
+
+      for (const e of eventsCache) {
+        if (!e) continue;
+        if (e.user !== user) continue;
+        if (e.dayStart !== todayStart) continue;
+
+        const dt = normalizeDrinkType(e.drinkType || "other");
+        out[dt] += e.v;
+        out.total += e.v;
+      }
+
+      // Clamp display safety
+      out.beer = Math.max(0, out.beer);
+      out.wine = Math.max(0, out.wine);
+      out.cocktail = Math.max(0, out.cocktail);
+      out.other = Math.max(0, out.other);
+      out.total = Math.max(0, out.total);
+
+      return out;
+    }
+
+    // Returns the last positive event today that is still undoable (not already offset by later -1 of same type)
+    function getLastPositiveEventToday(user) {
+      const todayStart = getTodayStartMs();
+      const debt = { beer: 0, wine: 0, cocktail: 0, other: 0 };
+
+      for (let i = eventsCache.length - 1; i >= 0; i--) {
+        const e = eventsCache[i];
+        if (!e) continue;
+        if (e.user !== user) continue;
+        if (e.dayStart !== todayStart) continue;
+
+        const dt = normalizeDrinkType(e.drinkType || "other");
+        if (e.v === -1) {
+          debt[dt] += 1;
+          continue;
+        }
+        if (e.v === 1) {
+          if (debt[dt] > 0) {
+            debt[dt] -= 1;
+            continue;
+          }
+          return e;
+        }
+      }
+      return null;
+    }
+
     function getTodayNetFor(user, drinkType) {
-      const todayStart = startOfDayLocal(Date.now());
+      const todayStart = getTodayStartMs();
       const dt = normalizeDrinkType(drinkType);
       let sum = 0;
       for (const e of eventsCache) {
@@ -2265,46 +2580,252 @@
       return sum;
     }
 
+    // Keeps existing type-scoped guardrails (used by adjust modal row -)
     async function logDrinkAction(user, drinkType, delta) {
-      const card = user === "Moe" ? el.cardMoe : el.cardTrish;
       const v = Math.trunc(safeInt(delta, 0));
       const dt = normalizeDrinkType(drinkType);
 
       if (v === -1) {
-        // Safe undo for today: do not allow net negative for today + type
         const net = getTodayNetFor(user, dt);
         if (net <= 0) {
-          if (card) {
-            card.style.transform = "translateX(5px)";
-            setTimeout(() => (card.style.transform = "translateX(-5px)"), 50);
-            setTimeout(() => (card.style.transform = "none"), 100);
-          }
+          shakeCard(user);
           return;
         }
-
         await logDrink({ user, drinkType: dt, delta: -1 });
-
-        if (card) {
-          card.style.transform = "translateX(5px)";
-          setTimeout(() => (card.style.transform = "translateX(-5px)"), 50);
-          setTimeout(() => (card.style.transform = "none"), 100);
-        }
+        shakeCard(user);
         return;
       }
 
       if (v === 1) {
         await logDrink({ user, drinkType: dt, delta: 1 });
-
-        if (card) {
-          const pop = document.createElement("div");
-          pop.className = "kanpai-pop";
-          pop.innerText = "🍻 Kanpai!";
-          card.appendChild(pop);
-          setTimeout(() => pop.remove(), 800);
-        }
+        showKanpaiPop(user);
       }
     }
     window.logDrinkAction = logDrinkAction;
+
+    // PH2-3: modals + long press
+    let activeModalUser = null;
+
+    function openDrinkTypeModal(user) {
+      activeModalUser = user;
+      if (!el.drinkTypeModal) return;
+      el.drinkTypeModal.classList.remove("hidden");
+      el.drinkTypeModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeDrinkTypeModal() {
+      if (!el.drinkTypeModal) return;
+      el.drinkTypeModal.classList.add("hidden");
+      el.drinkTypeModal.setAttribute("aria-hidden", "true");
+      activeModalUser = null;
+    }
+
+    function openAdjustTodayModal(user) {
+      activeModalUser = user;
+      if (!el.adjustTodayModal) return;
+      el.adjustTodayModal.classList.remove("hidden");
+      el.adjustTodayModal.setAttribute("aria-hidden", "false");
+      renderAdjustTodayUI();
+    }
+
+    function closeAdjustTodayModal() {
+      if (!el.adjustTodayModal) return;
+      el.adjustTodayModal.classList.add("hidden");
+      el.adjustTodayModal.setAttribute("aria-hidden", "true");
+      activeModalUser = null;
+    }
+
+    function renderAdjustTodayUI() {
+      if (!el.adjustTodayRows || !activeModalUser) return;
+
+      const user = activeModalUser;
+      if (el.adjustTodayTitle) el.adjustTodayTitle.textContent = `Adjust today (${user})`;
+
+      const counts = getTodayCountsByType(user);
+
+      const rows = [
+        { type: "beer", label: "🍺 Beer" },
+        { type: "wine", label: "🍷 Wine" },
+        { type: "cocktail", label: "🍹 Cocktail" },
+        { type: "other", label: "✨ Other" }
+      ];
+
+      el.adjustTodayRows.innerHTML = rows.map(r => {
+        const c = Math.max(0, counts[r.type] || 0);
+        const disabled = c <= 0 ? "disabled" : "";
+        return `
+          <div class="adjust-row" data-type="${r.type}">
+            <div class="adjust-label">${r.label}</div>
+            <div class="adjust-count" data-count="${r.type}">${c}</div>
+            <button class="mini-btn" type="button" data-action="minus" ${disabled} aria-label="${r.type} minus">−</button>
+            <button class="mini-btn" type="button" data-action="plus" aria-label="${r.type} plus">+</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function attachLongPress({ element, onTap, onLongPress, ms = 450 }) {
+      if (!element) return;
+
+      let timer = null;
+      let fired = false;
+      let pointerDown = false;
+      let suppressClick = false;
+
+      const clear = () => {
+        if (timer) clearTimeout(timer);
+        timer = null;
+      };
+
+      element.addEventListener("pointerdown", (e) => {
+        pointerDown = true;
+        fired = false;
+        suppressClick = false;
+        clear();
+
+        timer = setTimeout(() => {
+          if (!pointerDown) return;
+          fired = true;
+          suppressClick = true;
+          try { onLongPress && onLongPress(e); } catch {}
+        }, ms);
+      });
+
+      element.addEventListener("pointerup", (e) => {
+        pointerDown = false;
+        clear();
+        if (!fired) {
+          try { onTap && onTap(e); } catch {}
+        } else {
+          setTimeout(() => { suppressClick = false; }, 0);
+        }
+      });
+
+      element.addEventListener("pointercancel", () => {
+        pointerDown = false;
+        clear();
+      });
+
+      element.addEventListener("pointerleave", () => {
+        pointerDown = false;
+        clear();
+      });
+
+      element.addEventListener("contextmenu", (e) => {
+        // Prevent iOS context menu on long press
+        e.preventDefault();
+      });
+
+      element.addEventListener("click", (e) => {
+        if (suppressClick) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, true);
+    }
+
+    async function handlePlusTap(user) {
+      const dt = getLastDrinkType(user);
+      await logDrink({ user, drinkType: dt, delta: 1 });
+      showKanpaiPop(user);
+    }
+
+    async function handleMinusTap(user) {
+      const last = getLastPositiveEventToday(user);
+      if (!last) {
+        shakeCard(user);
+        return;
+      }
+      await logDrink({ user, drinkType: normalizeDrinkType(last.drinkType || "other"), delta: -1 });
+      shakeCard(user);
+    }
+
+    // Wire tracker controls with long press
+    attachLongPress({
+      element: el.btnMoePlus,
+      onTap: () => handlePlusTap("Moe"),
+      onLongPress: () => openDrinkTypeModal("Moe"),
+      ms: 450
+    });
+
+    attachLongPress({
+      element: el.btnTrishPlus,
+      onTap: () => handlePlusTap("Trish"),
+      onLongPress: () => openDrinkTypeModal("Trish"),
+      ms: 450
+    });
+
+    attachLongPress({
+      element: el.btnMoeMinus,
+      onTap: () => handleMinusTap("Moe"),
+      onLongPress: () => openAdjustTodayModal("Moe"),
+      ms: 450
+    });
+
+    attachLongPress({
+      element: el.btnTrishMinus,
+      onTap: () => handleMinusTap("Trish"),
+      onLongPress: () => openAdjustTodayModal("Trish"),
+      ms: 450
+    });
+
+    // Modal close wiring
+    if (el.btnDrinkTypeClose) el.btnDrinkTypeClose.addEventListener("click", closeDrinkTypeModal);
+    if (el.btnAdjustTodayClose) el.btnAdjustTodayClose.addEventListener("click", closeAdjustTodayModal);
+
+    document.addEventListener("click", (e) => {
+      const target = e.target;
+
+      const closeType = target?.getAttribute?.("data-sheet-close");
+      if (closeType === "drinktype") closeDrinkTypeModal();
+      if (closeType === "adjusttoday") closeAdjustTodayModal();
+    });
+
+    // Drink type selection (sets default + logs +1)
+    if (el.drinkTypeChoices) {
+      el.drinkTypeChoices.addEventListener("click", async (e) => {
+        const btn = e.target?.closest?.("[data-type]");
+        if (!btn) return;
+        const type = normalizeDrinkType(btn.getAttribute("data-type"));
+
+        const user = activeModalUser;
+        if (!user) return;
+
+        setLastDrinkType(user, type);
+        await logDrink({ user, drinkType: type, delta: 1 });
+        showKanpaiPop(user);
+        closeDrinkTypeModal();
+      });
+    }
+
+    // Adjust today row buttons
+    if (el.adjustTodayRows) {
+      el.adjustTodayRows.addEventListener("click", async (e) => {
+        const btn = e.target?.closest?.("button[data-action]");
+        if (!btn) return;
+
+        const row = btn.closest?.(".adjust-row");
+        if (!row) return;
+
+        const user = activeModalUser;
+        if (!user) return;
+
+        const type = normalizeDrinkType(row.getAttribute("data-type"));
+        const action = btn.getAttribute("data-action");
+
+        if (action === "plus") {
+          await logDrink({ user, drinkType: type, delta: 1 });
+          showKanpaiPop(user);
+          return;
+        }
+
+        if (action === "minus") {
+          // Type scoped, cannot go below 0
+          await logDrinkAction(user, type, -1);
+          return;
+        }
+      });
+    }
 
     function updateText(id, val) {
       const node = document.getElementById(id);
@@ -2345,6 +2866,15 @@
       updateText("stat-all-trish", stats.trish.all);
 
       applySelectedUserUI();
+
+      // Keep icons in sync with stored defaults
+      updatePlusButtonIcon("Moe");
+      updatePlusButtonIcon("Trish");
+
+      // Live update adjust modal counts as Firebase events arrive
+      if (el.adjustTodayModal && !el.adjustTodayModal.classList.contains("hidden") && activeModalUser) {
+        renderAdjustTodayUI();
+      }
     }
 
     onValue(historyRef, (snapshot) => {
