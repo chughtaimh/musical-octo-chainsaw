@@ -116,21 +116,6 @@
       position: relative;
     }
 
-    .user-card.active-user {
-      border-color: #ffd700;
-      transform: translateY(-5px);
-      box-shadow: 0 15px 30px rgba(255, 215, 0, 0.3);
-    }
-    .user-card.active-user::after {
-      content: '⭐';
-      position: absolute;
-      top: -15px;
-      right: -10px;
-      font-size: 2.5rem;
-      animation: spin 3s infinite linear;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
-    }
-
     .avatar { font-size: 3rem; display: block; margin-bottom: 5px; }
     .user-name { font-size: 1.1rem; font-weight: 800; text-transform: uppercase; color: #888; }
     .count {
@@ -262,7 +247,6 @@
       left: 0;
       top: 20px;
     }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
   </style>
 </head>
 
@@ -280,7 +264,7 @@
     </div>
 
     <div id="view-tracker" class="hidden">
-      <div style="text-align:center; margin-bottom:20px; color:#aaa; font-weight:bold;">TODAY'S SCORE</div>
+      <div style="text-align:center; margin-bottom:20px; color:#aaa; font-weight:bold;">Today</div>
 
       <div class="user-card moe" id="card-moe">
         <div class="avatar">🐻</div>
@@ -326,7 +310,7 @@
       <div class="query-container">
         <h3 style="text-align:center; color:var(--text); margin-top:0;">Ask the Log</h3>
         <div class="query-row">
-          <input type="text" id="query-input" placeholder="Ask a question... (ex: Who had more drinks last week? Moe 12/1-12/15? Weekends last month?)" />
+          <input type="text" id="query-input" placeholder="Ask a question... (ex: How many drinks last week? Moe 12/1-12/15? Weekends last month?)" />
           <button id="query-submit" class="btn-main btn-query">Ask</button>
         </div>
 
@@ -569,16 +553,13 @@
       if (hasMoe) return { users: ["Moe"], mode: "single" };
       if (hasTrish) return { users: ["Trish"], mode: "single" };
 
-      // If the question is "who..." and user not specified, we want a who-style answer.
       if (intent.whoSignals) return { users: ["Moe", "Trish"], mode: "who" };
 
-      // Default: both (higher answer rate)
       return { users: ["Moe", "Trish"], mode: "both" };
     }
 
     // --- Day-of-week filter parsing (weekends, weekdays, Wed-Fri, Fridays) ---
     function expandDowRange(d1, d2) {
-      // Expand in Monday-based order: Mon(1) -> ... -> Sun(0) at end
       const order = [1,2,3,4,5,6,0];
       const i1 = order.indexOf(d1);
       const i2 = order.indexOf(d2);
@@ -588,7 +569,6 @@
       if (i2 >= i1) {
         for (let i = i1; i <= i2; i++) out.push(order[i]);
       } else {
-        // wrap
         for (let i = i1; i < order.length; i++) out.push(order[i]);
         for (let i = 0; i <= i2; i++) out.push(order[i]);
       }
@@ -596,7 +576,6 @@
     }
 
     function parseDayFilter(qLower) {
-      // Weekend(s) and weekday(s)
       if (/\bweekends?\b/.test(qLower) || /\bweek end(s)?\b/.test(qLower)) {
         return { days: [6, 0], label: "weekends" };
       }
@@ -604,7 +583,6 @@
         return { days: [1,2,3,4,5], label: "weekdays" };
       }
 
-      // Day ranges like "wed-fri", "wednesday to friday", "mon thru thu"
       const rangeMatch = qLower.match(/\b(mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b\s*(?:-|to|thru|through)\s*\b(mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b/);
       if (rangeMatch) {
         const a = rangeMatch[1].replace(/sday|nesday|rsday|urday/g, "");
@@ -615,10 +593,9 @@
         if (days && days.length) return { days, label: `${DOW_SHORT[d1]}-${DOW_SHORT[d2]}` };
       }
 
-      // Plural days like "fridays", "mondays"
       const pluralMatch = qLower.match(/\b(sundays|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays)\b/);
       if (pluralMatch) {
-        const token = pluralMatch[1].slice(0, -1); // remove trailing s
+        const token = pluralMatch[1].slice(0, -1);
         const dow = DOW_ALIASES[token] ?? null;
         if (dow !== null) return { days: [dow], label: pluralMatch[1] };
       }
@@ -646,7 +623,6 @@
         return nowY;
       }
 
-      // Default: prefer past if the date would be in the future.
       if (candidate > todayStart) y = nowY - 1;
       return y;
     }
@@ -656,7 +632,6 @@
       const hasNext = /\bnext\b/.test(qLower);
       const hasThis = /\bthis\b/.test(qLower) || /\bcurrent\b/.test(qLower);
 
-      // ISO: YYYY-MM-DD
       let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
       if (m) {
         const y = parseInt(m[1], 10);
@@ -666,7 +641,6 @@
         return isNaN(dt.getTime()) ? null : dt.getTime();
       }
 
-      // Slash: M/D(/YYYY)
       m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
       if (m) {
         const mo = parseInt(m[1], 10) - 1;
@@ -682,7 +656,6 @@
         return isNaN(dt.getTime()) ? null : dt.getTime();
       }
 
-      // Month name: "dec 5 2025" or "december 5"
       m = s.match(/^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?$/);
       if (m) {
         const monthToken = m[1];
@@ -694,7 +667,6 @@
         return isNaN(dt.getTime()) ? null : dt.getTime();
       }
 
-      // Day month: "5 dec 2025"
       m = s.match(/^(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?$/);
       if (m) {
         const d = parseInt(m[1], 10);
@@ -718,16 +690,11 @@
         tokens.push({ text, idx, len: text.length, dayStart });
       }
 
-      // ISO tokens
       for (const match of qLower.matchAll(/\b(19\d{2}|20\d{2})-(\d{1,2})-(\d{1,2})\b/g)) addToken(match[0], match.index ?? 0);
-      // Slash tokens
       for (const match of qLower.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/g)) addToken(match[0], match.index ?? 0);
-      // Month name + day tokens
       for (const match of qLower.matchAll(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?\b/g)) addToken(match[0], match.index ?? 0);
-      // Day + month name tokens
       for (const match of qLower.matchAll(/\b(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?\b/g)) addToken(match[0], match.index ?? 0);
 
-      // De-dupe by index
       const seen = new Set();
       const deduped = [];
       for (const t of tokens.sort((a, b) => a.idx - b.idx)) {
@@ -741,14 +708,12 @@
 
     // --- Month range parsing ---
     function parseMonthRange(qLower, now) {
-      // Avoid false positives for "may" unless context is clear.
       let monthIdx = null;
 
       for (const [token, idx] of Object.entries(monthMap)) {
         const re = new RegExp("\\b" + token + "\\b", "i");
 
         if (token === "may") {
-          // Require context for may: "in may", "may 2025", "may 5"
           const ok = /\bin may\b/.test(qLower) || /\bmay\s+\d{4}\b/.test(qLower) || /\bmay\s+\d{1,2}\b/.test(qLower);
           if (!ok) continue;
         }
@@ -758,7 +723,6 @@
 
       if (monthIdx === null) return null;
 
-      // Explicit year
       const yearMatch = qLower.match(/\b(19\d{2}|20\d{2})\b/);
       const nowY = now.getFullYear();
       const nowM = now.getMonth();
@@ -776,7 +740,6 @@
       } else if (hasThis) {
         year = nowY;
       } else {
-        // Default: if month is ahead of current month, assume last year (more useful for logs)
         year = (monthIdx > nowM) ? nowY - 1 : nowY;
       }
 
@@ -790,20 +753,16 @@
       const nowMs = now.getTime();
       const todayStart = startOfDayLocal(now);
 
-      // Today / yesterday
       if (/\btoday\b/.test(qLower)) return { startMs: todayStart, endMs: nowMs, label: "today" };
       if (/\byesterday\b/.test(qLower)) return { startMs: todayStart - DAY_MS, endMs: todayStart, label: "yesterday" };
 
-      // This week (calendar week starting Monday)
       if (/\bthis week\b/.test(qLower)) return { startMs: startOfWeekMonday(now), endMs: nowMs, label: "this week" };
 
-      // "Calendar last week" or "previous week" (previous Mon-Sun)
       if (/\b(calendar last week|previous week|last calendar week)\b/.test(qLower)) {
         const startThis = startOfWeekMonday(now);
         return { startMs: startThis - 7 * DAY_MS, endMs: startThis, label: "last week (Mon-Sun)" };
       }
 
-      // "Last week" default
       if (/\blast week\b/.test(qLower)) {
         if (ctx?.preferCalendarLastWeek) {
           const startThis = startOfWeekMonday(now);
@@ -812,7 +771,6 @@
         return { startMs: todayStart - 6 * DAY_MS, endMs: nowMs, label: "last week (past 7 days)" };
       }
 
-      // This month / last month (calendar)
       if (/\bthis month\b/.test(qLower)) {
         const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
         return { startMs: start, endMs: nowMs, label: "this month" };
@@ -823,7 +781,6 @@
         return { startMs: startPrev, endMs: startThis, label: "last month" };
       }
 
-      // This year / last year (calendar)
       if (/\bthis year\b/.test(qLower) || /\bcurrent year\b/.test(qLower) || /\bytd\b/.test(qLower)) {
         const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
         return { startMs: start, endMs: nowMs, label: "this year" };
@@ -834,12 +791,11 @@
         return { startMs: startPrev, endMs: startThis, label: "last year" };
       }
 
-      // This weekend / last weekend (Sat-Sun)
       if (/\blast weekend\b/.test(qLower)) {
         const weekStart = startOfWeekMonday(now);
         const satThisWeek = weekStart + 5 * DAY_MS;
         const satLastWeek = satThisWeek - 7 * DAY_MS;
-        const end = satLastWeek + 2 * DAY_MS; // Monday 00:00 after weekend
+        const end = satLastWeek + 2 * DAY_MS;
         return { startMs: satLastWeek, endMs: end, label: "last weekend" };
       }
       if (/\bthis weekend\b/.test(qLower)) {
@@ -849,7 +805,6 @@
         return { startMs: satThisWeek, endMs: Math.min(end, nowMs), label: "this weekend" };
       }
 
-      // Specific weekday references: "last friday", "this tuesday", "next monday"
       const wd = qLower.match(/\b(last|this|next)\s+(sun(?:day)?|mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?)\b/);
       if (wd) {
         const mod = wd[1];
@@ -859,7 +814,6 @@
 
         const todayDow = new Date(todayStart).getDay();
 
-        // "last Tuesday" = most recent Tuesday BEFORE today
         if (mod === "last") {
           let diff = (todayDow - target + 7) % 7;
           if (diff === 0) diff = 7;
@@ -867,16 +821,14 @@
           return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `last ${DOW_FULL[target]}` };
         }
 
-        // "this" and "next" anchored to calendar week (Mon-Sun)
         const weekStart = startOfWeekMonday(now);
-        const offset = (target + 6) % 7; // Mon=0 ... Sun=6
+        const offset = (target + 6) % 7;
         const dayStart = weekStart + offset * DAY_MS;
 
         if (mod === "this") return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `this ${DOW_FULL[target]}` };
         return { startMs: dayStart + 7 * DAY_MS, endMs: dayStart + 8 * DAY_MS, label: `next ${DOW_FULL[target]}` };
       }
 
-      // "On Friday" (most recent occurrence, including today if it matches)
       const onWd = qLower.match(/\bon\s+(sun(?:day)?|mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?)\b/);
       if (onWd) {
         const raw = onWd[1].replace(/sday|nesday|rsday|urday/g, "");
@@ -894,7 +846,6 @@
       const nowMs = now.getTime();
       const todayStart = startOfDayLocal(now);
 
-      // past/last N days
       const days = qLower.match(/\b(past|last)\s+(\d{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s+days?\b/);
       if (days) {
         const n = /^\d+$/.test(days[2]) ? parseInt(days[2], 10) : (numberWords[days[2]] ?? 1);
@@ -902,7 +853,6 @@
         return { startMs: todayStart - (nn - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "day")}` };
       }
 
-      // past/last N weeks
       const weeks = qLower.match(/\b(past|last)\s+(\d{1,2}|a|an|one|two|three|four|five|six|seven|eight)\s+weeks?\b/);
       if (weeks) {
         const n = /^\d+$/.test(weeks[2]) ? parseInt(weeks[2], 10) : (numberWords[weeks[2]] ?? 1);
@@ -911,7 +861,6 @@
         return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "week")}` };
       }
 
-      // past/last N months (approx)
       const months = qLower.match(/\b(past|last)\s+(\d{1,2}|a|an|one|two|three|four|five|six)\s+months?\b/);
       if (months) {
         const n = /^\d+$/.test(months[2]) ? parseInt(months[2], 10) : (numberWords[months[2]] ?? 1);
@@ -920,7 +869,6 @@
         return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "month")}` };
       }
 
-      // Shorthand "last 7 days", "last 30 days"
       const nDays = qLower.match(/\blast\s+(7|30)\s+days?\b/);
       if (nDays) {
         const nn = parseInt(nDays[1], 10);
@@ -930,7 +878,6 @@
       return null;
     }
 
-    // --- Explicit date range parsing ---
     function resolveTimeRange(rawQ, now, ctx) {
       const qLower = normalizeQuery(rawQ);
       const nowMs = now.getTime();
@@ -939,56 +886,50 @@
       const dayFilter = parseDayFilter(qLower);
       const dateTokens = extractDateTokens(qLower, now);
 
-      // Since DATE
       if (/\bsince\b/.test(qLower) && dateTokens.length >= 1) {
         const sinceIdx = qLower.indexOf("since");
         const t = dateTokens.find(x => x.idx >= sinceIdx) || dateTokens[0];
         return { startMs: t.dayStart, endMs: nowMs, label: `since ${fmtDate(t.dayStart)}` };
       }
 
-      // On DATE (single day)
       if (/\bon\b/.test(qLower) && dateTokens.length >= 1) {
         const onIdx = qLower.indexOf("on");
         const t = dateTokens.find(x => x.idx >= onIdx) || dateTokens[0];
         return { startMs: t.dayStart, endMs: t.dayStart + DAY_MS, label: `on ${fmtDate(t.dayStart)}` };
       }
 
-      // Between DATE and DATE
       if (/\bbetween\b/.test(qLower) && dateTokens.length >= 2) {
         const betweenIdx = qLower.indexOf("between");
         const andIdx = qLower.indexOf(" and ", betweenIdx);
         const t1 = dateTokens.find(x => x.idx >= betweenIdx) || dateTokens[0];
         const t2 = (andIdx >= 0 ? dateTokens.find(x => x.idx >= andIdx) : null) || dateTokens[1];
         const start = Math.min(t1.dayStart, t2.dayStart);
-        const end = Math.max(t1.dayStart, t2.dayStart) + DAY_MS; // inclusive
+        const end = Math.max(t1.dayStart, t2.dayStart) + DAY_MS;
         return { startMs: start, endMs: end, label: `between ${fmtDate(start)} and ${fmtDate(end - DAY_MS)}` };
       }
 
-      // From DATE to DATE
       if (/\bfrom\b/.test(qLower) && dateTokens.length >= 2) {
         const fromIdx = qLower.indexOf("from");
         const toIdx = qLower.indexOf(" to ", fromIdx);
         const t1 = dateTokens.find(x => x.idx >= fromIdx) || dateTokens[0];
         const t2 = (toIdx >= 0 ? dateTokens.find(x => x.idx >= toIdx) : null) || dateTokens[1];
         const start = Math.min(t1.dayStart, t2.dayStart);
-        const end = Math.max(t1.dayStart, t2.dayStart) + DAY_MS; // inclusive
+        const end = Math.max(t1.dayStart, t2.dayStart) + DAY_MS;
         return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
       }
 
-      // DATE - DATE (or DATE to DATE) range
       if (dateTokens.length >= 2) {
         for (let i = 0; i < dateTokens.length - 1; i++) {
           const a = dateTokens[i];
           const b = dateTokens[i + 1];
           const mid = qLower.slice(a.idx + a.len, b.idx).trim();
 
-          // NOTE: using unicode escapes to avoid literal en dash / em dash characters in the code.
           const isDashRange = mid === "-" || mid === "\u2013" || mid === "\u2014";
           const isToRange = mid === "to" || mid === "thru" || mid === "through" || mid === "until";
 
           if (isDashRange || isToRange) {
             const start = Math.min(a.dayStart, b.dayStart);
-            const end = Math.max(a.dayStart, b.dayStart) + DAY_MS; // inclusive
+            const end = Math.max(a.dayStart, b.dayStart) + DAY_MS;
             return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
           }
 
@@ -1000,23 +941,18 @@
         }
       }
 
-      // Month range before named ranges
       const monthRange = parseMonthRange(qLower, now);
       if (monthRange) return monthRange;
 
-      // Named ranges
       const named = parseNamedRange(qLower, now, ctx);
       if (named) return named;
 
-      // Numeric relatives
       const rel = parseNumericRelative(qLower, now);
       if (rel) return rel;
 
-      // Defaults
       if (/\bweek\b/.test(qLower)) return { startMs: todayStart - 6 * DAY_MS, endMs: nowMs, label: "past 7 days" };
       if (/\bmonth\b/.test(qLower)) return { startMs: todayStart - 29 * DAY_MS, endMs: nowMs, label: "past 30 days" };
 
-      // If they asked about plural weekdays but gave no range, default to this year
       if (dayFilter && /\b(this year|last year|this month|last month|this week|last week|past|last|since|between|from|\d{1,2}\/\d{1,2}|20\d{2}-\d{1,2}-\d{1,2})\b/.test(qLower) === false) {
         const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
         return { startMs: start, endMs: nowMs, label: "this year" };
@@ -1039,8 +975,8 @@
       }
 
       let total = 0;
-      const perDay = new Map(); // dayStart -> { Moe, Trish, total }
-      const perDow = new Map(); // dow -> { Moe, Trish, total }
+      const perDay = new Map();
+      const perDow = new Map();
 
       const allowedDays = dayFilter?.days ? new Set(dayFilter.days) : null;
 
@@ -1119,26 +1055,14 @@
       return `${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getFullYear()}`;
     }
 
-    /**
-     * renderChart(intent, userInfo, agg, range)
-     * Chart Selection rules:
-     * - comparison OR ("who" for single day) -> pie
-     * - breakdown/count over a range -> bars (single dataset if 1 user, clustered if 2)
-     *
-     * DENSITY LOGIC (day / week / month bucketing) is handled inside buildTimeBucketsFromPerDay().
-     */
     function renderChart(intent, userInfo, agg, range) {
-      // Always destroy prior chart instance before creating a new one (prevents ghost hover + glitches).
       destroyQueryChart();
 
       if (!window.Chart || !el.queryChartCanvas || !el.queryChartWrap) return;
 
-      // Hide if there is no meaningful data
       const moeTotal = agg?.sums?.Moe || 0;
       const trishTotal = agg?.sums?.Trish || 0;
       const hasAny = (moeTotal + trishTotal) > 0;
-
-      // If no data, keep the text answer, but do not render a chart.
       if (!hasAny) return;
 
       const moeColor = cssVar("--moe", "#6ab7ff");
@@ -1150,7 +1074,6 @@
 
       const wantsPie = intent?.type === "comparison" || (intent?.whoSignals && isSingleDay);
 
-      // Common options (no gridlines, rounded vibe, clear legend)
       const commonPlugins = {
         legend: {
           display: true,
@@ -1173,7 +1096,7 @@
           }
         }
       };
-      
+
       if (wantsPie) {
         el.queryChartWrap.classList.remove("hidden");
 
@@ -1198,10 +1121,8 @@
         return;
       }
 
-      // Bar charts for breakdown/count over range
-      // Special case: breakdown by day of week -> categorical bars (Mon-Sun)
       if (intent?.type === "breakdown" && intent?.breakdownMode === "dow") {
-        const order = [1,2,3,4,5,6,0]; // Mon..Sun
+        const order = [1,2,3,4,5,6,0];
         const labels = order.map(d => DOW_SHORT[d]);
 
         const moeData = order.map(d => (agg.perDow.get(d)?.Moe || 0));
@@ -1245,7 +1166,6 @@
         return;
       }
 
-      // Time-series bars (day/week/month) using perDay bucketing
       const bucketed = buildTimeBucketsFromPerDay(agg.perDay, range);
       if (!bucketed.labels.length) return;
 
@@ -1303,26 +1223,18 @@
       });
     }
 
-    // ---------------------------------------------------------
-    // DENSITY LOGIC HIGHLIGHT: day/week/month bucketing happens here
-    // ---------------------------------------------------------
     function buildTimeBucketsFromPerDay(perDayMap, range) {
       const startDay = startOfDayLocal(range.startMs);
       const endDay = startOfDayLocal(Math.max(range.startMs, range.endMs - 1));
       const spanDays = Math.max(1, Math.round((endDay - startDay) / DAY_MS) + 1);
 
-      // === DENSITY LOGIC START ===
-      // 30 days or under -> Day
-      // 31 to 90 days -> Calendar Week (starting Monday)
-      // Over 90 days -> Month
       let mode = "day";
       if (spanDays > 90) mode = "month";
       else if (spanDays > 30) mode = "week";
-      // === DENSITY LOGIC END ===
 
       const bucketKeys = [];
       const labels = [];
-      const bucketMap = new Map(); // key -> { Moe, Trish, total }
+      const bucketMap = new Map();
 
       function ensureBucket(key, label) {
         if (!bucketMap.has(key)) bucketMap.set(key, { Moe: 0, Trish: 0, total: 0 });
@@ -1337,7 +1249,6 @@
         const endW = startOfWeekMonday(endDay);
         for (; t <= endW; t += 7 * DAY_MS) ensureBucket(t, labelForWeek(t));
       } else {
-        // month
         const s = new Date(startDay);
         s.setDate(1); s.setHours(0,0,0,0);
         const e = new Date(endDay);
@@ -1356,7 +1267,6 @@
         }
       }
 
-      // Aggregate perDay values into buckets
       for (const [dayStart, rec] of perDayMap.entries()) {
         if (dayStart < startDay || dayStart > endDay) continue;
 
@@ -1379,13 +1289,11 @@
       return { mode, labels, series, spanDays };
     }
 
-    // --- Natural Language Query handler ---
     const EXAMPLES_HTML = `
       Try questions like:<small>
       How many drinks did Moe have today?<br>
       How many drinks did Trish have in December 2025?<br>
       How many drinks both last week?<br>
-      Who had more drinks last week?<br>
       Moe 12/1-12/15<br>
       Weekends last month<br>
       Fridays this year for Moe<br>
@@ -1394,7 +1302,6 @@
     `;
 
     function handleQuery() {
-      // Chart should remain until the next query is submitted -> destroy at the start of every submission.
       destroyQueryChart();
 
       const raw = (el.queryInput?.value || "").trim();
@@ -1449,7 +1356,6 @@
         if (ok) renderChart(intent, userInfo, agg, range);
       }
 
-      // --- Answer formatting by intent ---
       if (intent.type === "comparison") {
         const isWhoDrank = intent.whoSignals && !(/\bmore\b|\bmost\b|\bwinner\b|\bvs\b|\bversus\b|\bcompare\b/.test(qLower));
 
@@ -1607,7 +1513,6 @@
         return;
       }
 
-      // Default: count
       if (userInfo.mode === "who") {
         const who = [];
         if (moeN > 0) who.push(`Moe (${moeN})`);
@@ -1631,7 +1536,6 @@
     if (el.querySubmit) el.querySubmit.addEventListener("click", handleQuery);
     if (el.queryInput) el.queryInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleQuery(); });
 
-    // --- History chart (default view) ---
     function renderHistoryChart() {
       destroyHistoryChart();
 
@@ -1643,13 +1547,12 @@
 
       const now = new Date();
       const endMs = now.getTime();
-      const startMs = startOfDayLocal(endMs) - (21 - 1) * DAY_MS; // last 21 days inclusive of today
+      const startMs = startOfDayLocal(endMs) - (21 - 1) * DAY_MS;
       const range = { startMs, endMs, label: "last 21 days" };
 
       const agg = aggregate(["Moe", "Trish"], range, {});
       const bucketed = buildTimeBucketsFromPerDay(agg.perDay, range);
 
-      // If no data, keep section hidden
       const moeTotal = agg?.sums?.Moe || 0;
       const trishTotal = agg?.sums?.Trish || 0;
       if ((moeTotal + trishTotal) === 0 || !bucketed.labels.length) {
@@ -1699,7 +1602,7 @@
       el.viewTracker.classList.toggle("hidden", tab !== "tracker");
       el.viewAnalytics.classList.toggle("hidden", tab !== "analytics");
 
-      el.header.innerText = tab === "tracker" ? "Drink Tracker" : "History";
+      el.header.innerText = tab === "tracker" ? "Check in" : "History";
     }
     window.switchTab = switchTab;
 
@@ -1800,14 +1703,6 @@
       updateText("stat-month-trish", stats.trish.month);
       updateText("stat-all-moe", stats.moe.all);
       updateText("stat-all-trish", stats.trish.all);
-
-      el.cardMoe.classList.remove("active-user");
-      el.cardTrish.classList.remove("active-user");
-
-      if (stats.moe.day > 0 || stats.trish.day > 0) {
-        if (stats.moe.day > stats.trish.day) el.cardMoe.classList.add("active-user");
-        else if (stats.trish.day > stats.moe.day) el.cardTrish.classList.add("active-user");
-      }
     }
 
     // --- Realtime listener ---
