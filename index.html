@@ -45,7 +45,30 @@
       color: var(--trish);
       font-size: 1.2rem;
       z-index: 10;
+      position: relative;
     }
+
+    .btn-gear {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 16px;
+      border: 2px solid #eee;
+      background: #fff;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(149, 157, 165, 0.12);
+      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .btn-gear:active { transform: translateY(-50%) scale(0.97); }
 
     #app-content {
       flex: 1;
@@ -316,11 +339,181 @@
     .profile-btn.moe:hover { border-color: rgba(106, 183, 255, 0.6); background: rgba(106, 183, 255, 0.08); }
     .profile-btn.trish:hover { border-color: rgba(255, 141, 161, 0.6); background: rgba(255, 141, 161, 0.08); }
     .profile-emoji { font-size: 1.6rem; line-height: 1; }
+
+    /* Settings modal */
+    #settings-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 220;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      box-sizing: border-box;
+    }
+    #settings-modal .settings-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(10px);
+    }
+    #settings-modal .settings-card {
+      position: relative;
+      width: min(540px, 92vw);
+      background: #fff;
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      border: 2px solid #eee;
+      padding: 18px 18px 16px 18px;
+      text-align: left;
+    }
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .settings-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+      font-size: 1.2rem;
+      color: var(--text);
+      margin: 0;
+    }
+    .btn-close {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      border: 2px solid #eee;
+      background: #fff;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(149, 157, 165, 0.12);
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .btn-close:active { transform: scale(0.97); }
+
+    .settings-section {
+      border-top: 2px dashed #f0f0f0;
+      padding-top: 14px;
+      margin-top: 12px;
+    }
+    .settings-label {
+      font-weight: 900;
+      color: var(--text);
+      margin: 0 0 8px 0;
+    }
+    .settings-help {
+      margin: 0 0 12px 0;
+      color: #888;
+      font-weight: 800;
+      font-size: 0.95rem;
+      line-height: 1.25;
+    }
+
+    .switch-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .switch-btn {
+      border: 2px solid #eee;
+      background: #f9f9f9;
+      border-radius: 18px;
+      padding: 14px 10px;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(149, 157, 165, 0.12);
+      transition: transform 0.08s, border-color 0.12s, background 0.12s;
+      font-weight: 900;
+      color: var(--text);
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .switch-btn:active { transform: scale(0.98); }
+    .switch-btn.active.moe { border-color: rgba(106, 183, 255, 0.75); background: rgba(106, 183, 255, 0.10); }
+    .switch-btn.active.trish { border-color: rgba(255, 141, 161, 0.75); background: rgba(255, 141, 161, 0.10); }
+
+    .plan-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .plan-row input {
+      margin-bottom: 0;
+      text-align: center;
+      width: 140px;
+      padding: 14px 12px;
+      border-radius: 18px;
+      font-weight: 900;
+    }
+    .plan-chip {
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 2px dashed #eee;
+      background: #fafafa;
+      color: #888;
+      font-weight: 900;
+      font-size: 0.95rem;
+      flex: 1 1 auto;
+      min-width: 160px;
+      text-align: center;
+    }
+    .settings-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .btn-secondary {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 2px solid #eee;
+      background: #fff;
+      color: var(--text);
+      font-weight: 900;
+      cursor: pointer;
+      flex: 1 1 160px;
+      box-shadow: 0 6px 14px rgba(149, 157, 165, 0.12);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .btn-secondary:active { transform: scale(0.98); }
+    .btn-primary {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: none;
+      background: var(--trish);
+      color: #fff;
+      font-weight: 900;
+      cursor: pointer;
+      flex: 2 1 220px;
+      box-shadow: 0 6px 14px rgba(255, 141, 161, 0.32);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .btn-primary:active { transform: scale(0.98); }
   </style>
 </head>
 
 <body>
-  <header id="app-header">Welcome</header>
+  <header id="app-header">
+    Welcome
+    <button id="btn-settings" class="btn-gear hidden" type="button" aria-label="Settings">⚙️</button>
+  </header>
 
   <div id="app-content">
     <div id="view-login">
@@ -421,6 +614,40 @@
     </div>
   </div>
 
+  <!-- Settings modal -->
+  <div id="settings-modal" class="hidden" aria-hidden="true">
+    <div class="settings-backdrop"></div>
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-header">
+        <h2 id="settings-title" class="settings-title"><span style="font-size:1.3rem;">⚙️</span> Settings</h2>
+        <button id="btn-settings-close" class="btn-close" type="button" aria-label="Close settings">✕</button>
+      </div>
+
+      <div class="settings-section" style="border-top:none; padding-top:0; margin-top:0;">
+        <p class="settings-label">Profile</p>
+        <p class="settings-help">Switch who "me" refers to. No re-login needed.</p>
+        <div class="switch-row">
+          <button id="btn-switch-moe" class="switch-btn moe" type="button"><span style="font-size:1.2rem;">🐻</span> Moe</button>
+          <button id="btn-switch-trish" class="switch-btn trish" type="button"><span style="font-size:1.2rem;">🐱</span> Trish</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <p class="settings-label">Weekly plan</p>
+        <p class="settings-help">Stored per profile. This powers the token row later.</p>
+        <div class="plan-row">
+          <input id="weekly-plan-input" type="number" min="0" max="99" step="1" inputmode="numeric" />
+          <div id="plan-hint" class="plan-chip">Applies to: Moe</div>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button id="btn-settings-cancel" class="btn-secondary" type="button">Close</button>
+        <button id="btn-settings-save" class="btn-primary" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -444,12 +671,18 @@
     // --- Local storage keys ---
     const LS = {
       auth: "auth_token",
-      selectedUser: "selected_user"
+      selectedUser: "selected_user",
+      weeklyPlanMoe: "weekly_plan_Moe",
+      weeklyPlanTrish: "weekly_plan_Trish"
     };
+
+    const DEFAULT_WEEKLY_PLAN = 14;
 
     // --- DOM ---
     const el = {
       header: document.getElementById("app-header"),
+      btnSettings: document.getElementById("btn-settings"),
+
       viewLogin: document.getElementById("view-login"),
       viewTracker: document.getElementById("view-tracker"),
       viewAnalytics: document.getElementById("view-analytics"),
@@ -475,7 +708,16 @@
 
       profileModal: document.getElementById("profile-modal"),
       btnProfileMoe: document.getElementById("btn-profile-moe"),
-      btnProfileTrish: document.getElementById("btn-profile-trish")
+      btnProfileTrish: document.getElementById("btn-profile-trish"),
+
+      settingsModal: document.getElementById("settings-modal"),
+      btnSettingsClose: document.getElementById("btn-settings-close"),
+      btnSettingsCancel: document.getElementById("btn-settings-cancel"),
+      btnSettingsSave: document.getElementById("btn-settings-save"),
+      btnSwitchMoe: document.getElementById("btn-switch-moe"),
+      btnSwitchTrish: document.getElementById("btn-switch-trish"),
+      weeklyPlanInput: document.getElementById("weekly-plan-input"),
+      planHint: document.getElementById("plan-hint")
     };
 
     let allHistory = {};
@@ -524,6 +766,27 @@
       if (u !== "Moe" && u !== "Trish") return;
       localStorage.setItem(LS.selectedUser, u);
       applySelectedUserUI();
+      syncSettingsUIFromState();
+    }
+
+    function weeklyPlanKeyFor(user) {
+      return user === "Trish" ? LS.weeklyPlanTrish : LS.weeklyPlanMoe;
+    }
+
+    function getWeeklyPlan(user) {
+      const key = weeklyPlanKeyFor(user);
+      const raw = localStorage.getItem(key);
+      const n = raw === null ? NaN : parseInt(raw, 10);
+      if (!Number.isFinite(n) || isNaN(n) || n < 0) return DEFAULT_WEEKLY_PLAN;
+      return Math.min(99, n);
+    }
+
+    function setWeeklyPlan(user, planInt) {
+      if (user !== "Moe" && user !== "Trish") return;
+      const n = Number.isFinite(planInt) ? Math.trunc(planInt) : parseInt(String(planInt || ""), 10);
+      if (!Number.isFinite(n) || isNaN(n)) return;
+      const safe = Math.max(0, Math.min(99, n));
+      localStorage.setItem(weeklyPlanKeyFor(user), String(safe));
     }
 
     function applySelectedUserUI() {
@@ -538,17 +801,43 @@
       el.profileModal.classList.remove("hidden");
       el.profileModal.setAttribute("aria-hidden", "false");
 
+      if (el.btnSettings) el.btnSettings.classList.add("hidden");
+
       // Gate the app until a profile is picked
       if (el.nav) el.nav.classList.add("hidden");
       if (el.viewTracker) el.viewTracker.classList.add("hidden");
       if (el.viewAnalytics) el.viewAnalytics.classList.add("hidden");
-      if (el.header) el.header.innerText = "Who are you?";
+      if (el.header) el.header.childNodes[0].textContent = "Who are you?";
     }
 
     function hideProfileModal() {
       if (!el.profileModal) return;
       el.profileModal.classList.add("hidden");
       el.profileModal.setAttribute("aria-hidden", "true");
+    }
+
+    function showSettingsModal() {
+      if (!el.settingsModal) return;
+      el.settingsModal.classList.remove("hidden");
+      el.settingsModal.setAttribute("aria-hidden", "false");
+      syncSettingsUIFromState();
+    }
+
+    function hideSettingsModal() {
+      if (!el.settingsModal) return;
+      el.settingsModal.classList.add("hidden");
+      el.settingsModal.setAttribute("aria-hidden", "true");
+    }
+
+    function syncSettingsUIFromState() {
+      const u = getSelectedUser();
+      if (!u) return;
+
+      if (el.btnSwitchMoe) el.btnSwitchMoe.classList.toggle("active", u === "Moe");
+      if (el.btnSwitchTrish) el.btnSwitchTrish.classList.toggle("active", u === "Trish");
+
+      if (el.weeklyPlanInput) el.weeklyPlanInput.value = String(getWeeklyPlan(u));
+      if (el.planHint) el.planHint.innerText = `Applies to: ${u}`;
     }
 
     function cssVar(name, fallback = "") {
@@ -684,7 +973,7 @@
       if (meSignals) {
         if (selected === "Moe") hasMoe = true;
         else if (selected === "Trish") hasTrish = true;
-        else hasMoe = true; // fallback for safety
+        else hasMoe = true;
       }
 
       const bothSignals = /\b(both|all|together|us|we|everyone)\b/.test(qLower) || (hasMoe && hasTrish);
@@ -756,9 +1045,7 @@
         return y;
       }
 
-      if (hasThis) {
-        return nowY;
-      }
+      if (hasThis) return nowY;
 
       if (candidate > todayStart) y = nowY - 1;
       return y;
@@ -1419,7 +1706,6 @@
       const userInfo = parseUsers(qLower, intent);
       const dayFilter = parseDayFilter(qLower);
 
-      // Minimal support to prove "my" binding for streak queries (streaks implemented later)
       if (/\bstreak\b/.test(qLower)) {
         const who = (userInfo.users.length === 1) ? userInfo.users[0] : "Moe and Trish";
         setQueryResult(
@@ -1712,15 +1998,19 @@
       el.viewTracker.classList.toggle("hidden", tab !== "tracker");
       el.viewAnalytics.classList.toggle("hidden", tab !== "analytics");
 
-      el.header.innerText = tab === "tracker" ? "Check in" : "History";
+      el.header.childNodes[0].textContent = tab === "tracker" ? "Check in" : "History";
     }
     window.switchTab = switchTab;
 
     function bootApp() {
       hideProfileModal();
+      hideSettingsModal();
+
       el.nav.classList.remove("hidden");
       applySelectedUserUI();
       switchTab("tracker");
+
+      if (el.btnSettings) el.btnSettings.classList.remove("hidden");
 
       if (el.queryText && el.queryText.innerHTML.trim() === "") {
         setQueryResult(EXAMPLES_HTML, false);
@@ -1759,6 +2049,53 @@
       el.btnProfileTrish.addEventListener("click", () => {
         setSelectedUser("Trish");
         bootApp();
+      });
+    }
+
+    // Settings wiring (PH1-2)
+    if (el.btnSettings) el.btnSettings.addEventListener("click", () => {
+      if (!getSelectedUser()) return;
+      showSettingsModal();
+    });
+
+    if (el.btnSettingsClose) el.btnSettingsClose.addEventListener("click", hideSettingsModal);
+    if (el.btnSettingsCancel) el.btnSettingsCancel.addEventListener("click", hideSettingsModal);
+
+    if (el.btnSwitchMoe) el.btnSwitchMoe.addEventListener("click", () => setSelectedUser("Moe"));
+    if (el.btnSwitchTrish) el.btnSwitchTrish.addEventListener("click", () => setSelectedUser("Trish"));
+
+    if (el.btnSettingsSave) el.btnSettingsSave.addEventListener("click", () => {
+      const u = getSelectedUser();
+      if (!u) return;
+
+      const raw = (el.weeklyPlanInput?.value || "").trim();
+      const n = parseInt(raw, 10);
+      if (!Number.isFinite(n) || isNaN(n)) {
+        if (el.weeklyPlanInput) el.weeklyPlanInput.value = String(getWeeklyPlan(u));
+        hideSettingsModal();
+        return;
+      }
+
+      setWeeklyPlan(u, n);
+      syncSettingsUIFromState();
+      hideSettingsModal();
+    });
+
+    if (el.weeklyPlanInput) {
+      el.weeklyPlanInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") el.btnSettingsSave?.click();
+      });
+      el.weeklyPlanInput.addEventListener("blur", () => {
+        const u = getSelectedUser();
+        if (!u) return;
+        const raw = (el.weeklyPlanInput.value || "").trim();
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || isNaN(n)) {
+          el.weeklyPlanInput.value = String(getWeeklyPlan(u));
+          return;
+        }
+        const safe = Math.max(0, Math.min(99, Math.trunc(n)));
+        el.weeklyPlanInput.value = String(safe);
       });
     }
 
