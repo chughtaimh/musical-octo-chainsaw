@@ -116,6 +116,10 @@
       position: relative;
     }
 
+    .user-card.selected { border-color: rgba(84, 74, 74, 0.35); }
+    .user-card.moe.selected { border-color: var(--moe); }
+    .user-card.trish.selected { border-color: var(--trish); }
+
     .avatar { font-size: 3rem; display: block; margin-bottom: 5px; }
     .user-name { font-size: 1.1rem; font-weight: 800; text-transform: uppercase; color: #888; }
     .count {
@@ -247,6 +251,71 @@
       left: 0;
       top: 20px;
     }
+
+    /* Profile selection modal */
+    #profile-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      box-sizing: border-box;
+    }
+    #profile-modal .profile-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(10px);
+    }
+    #profile-modal .profile-card {
+      position: relative;
+      width: min(520px, 92vw);
+      background: #fff;
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      border: 2px solid #eee;
+      padding: 22px;
+      text-align: center;
+    }
+    #profile-modal h2 {
+      margin: 6px 0 8px 0;
+      color: var(--text);
+      font-size: 1.35rem;
+    }
+    #profile-modal p {
+      margin: 0 0 16px 0;
+      color: #888;
+      font-weight: 800;
+    }
+    .profile-choices {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .profile-btn {
+      border: 2px solid #eee;
+      background: #f9f9f9;
+      border-radius: 22px;
+      padding: 16px 12px;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(149, 157, 165, 0.12);
+      transition: transform 0.08s, border-color 0.12s, background 0.12s;
+      font-weight: 900;
+      color: var(--text);
+      font-size: 1.15rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .profile-btn:active { transform: scale(0.98); }
+    .profile-btn.moe:hover { border-color: rgba(106, 183, 255, 0.6); background: rgba(106, 183, 255, 0.08); }
+    .profile-btn.trish:hover { border-color: rgba(255, 141, 161, 0.6); background: rgba(255, 141, 161, 0.08); }
+    .profile-emoji { font-size: 1.6rem; line-height: 1; }
   </style>
 </head>
 
@@ -334,6 +403,24 @@
     </div>
   </nav>
 
+  <!-- Profile selection modal -->
+  <div id="profile-modal" class="hidden" aria-hidden="true">
+    <div class="profile-backdrop"></div>
+    <div class="profile-card" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+      <div style="font-size: 2.2rem; margin-bottom: 6px;">👋</div>
+      <h2 id="profile-title">Who are you?</h2>
+      <p>Pick your profile so "me" and "my" work.</p>
+      <div class="profile-choices">
+        <button id="btn-profile-moe" class="profile-btn moe" type="button">
+          <span class="profile-emoji">🐻</span> Moe
+        </button>
+        <button id="btn-profile-trish" class="profile-btn trish" type="button">
+          <span class="profile-emoji">🐱</span> Trish
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -353,6 +440,12 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const historyRef = ref(db, "history");
+
+    // --- Local storage keys ---
+    const LS = {
+      auth: "auth_token",
+      selectedUser: "selected_user"
+    };
 
     // --- DOM ---
     const el = {
@@ -378,16 +471,17 @@
       queryChartWrap: document.getElementById("query-chart-wrap"),
       queryChartCanvas: document.getElementById("query-chart"),
       historyChartWrap: document.getElementById("history-chart-wrap"),
-      historyChartCanvas: document.getElementById("history-chart")
+      historyChartCanvas: document.getElementById("history-chart"),
+
+      profileModal: document.getElementById("profile-modal"),
+      btnProfileMoe: document.getElementById("btn-profile-moe"),
+      btnProfileTrish: document.getElementById("btn-profile-trish")
     };
 
     let allHistory = {};
     let eventsCache = [];
 
     const DAY_MS = 24 * 60 * 60 * 1000;
-
-    // PH0-4: NY timezone hygiene foundation
-    const TZ = "America/New_York";
 
     const DOW_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const DOW_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -421,114 +515,40 @@
       eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20
     };
 
-    function pad2(n) {
-      const x = String(n);
-      return x.length === 1 ? "0" + x : x;
+    function getSelectedUser() {
+      const u = localStorage.getItem(LS.selectedUser);
+      return (u === "Moe" || u === "Trish") ? u : null;
     }
 
-    function parseDayKey(dayKey) {
-      const m = String(dayKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (!m) return null;
-      return { year: parseInt(m[1], 10), month: parseInt(m[2], 10), day: parseInt(m[3], 10) };
+    function setSelectedUser(u) {
+      if (u !== "Moe" && u !== "Trish") return;
+      localStorage.setItem(LS.selectedUser, u);
+      applySelectedUserUI();
     }
 
-    function getTzYmdParts(ts, timeZone = TZ) {
-      const fmt = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
-      const parts = fmt.formatToParts(new Date(ts));
-      const y = parts.find(p => p.type === "year")?.value;
-      const m = parts.find(p => p.type === "month")?.value;
-      const d = parts.find(p => p.type === "day")?.value;
-      if (!y || !m || !d) return null;
-      return { year: parseInt(y, 10), month: parseInt(m, 10), day: parseInt(d, 10) };
+    function applySelectedUserUI() {
+      const u = getSelectedUser();
+      if (!u) return;
+      if (el.cardMoe) el.cardMoe.classList.toggle("selected", u === "Moe");
+      if (el.cardTrish) el.cardTrish.classList.toggle("selected", u === "Trish");
     }
 
-    // dayKeyFromTs(ts) -> YYYY-MM-DD in NY
-    function dayKeyFromTs(ts) {
-      const p = getTzYmdParts(ts, TZ);
-      if (!p) return null;
-      return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
+    function showProfileModal() {
+      if (!el.profileModal) return;
+      el.profileModal.classList.remove("hidden");
+      el.profileModal.setAttribute("aria-hidden", "false");
+
+      // Gate the app until a profile is picked
+      if (el.nav) el.nav.classList.add("hidden");
+      if (el.viewTracker) el.viewTracker.classList.add("hidden");
+      if (el.viewAnalytics) el.viewAnalytics.classList.add("hidden");
+      if (el.header) el.header.innerText = "Who are you?";
     }
 
-    // dayKeyAddDays(dayKey, n) -> YYYY-MM-DD (calendar math, DST safe)
-    function dayKeyAddDays(dayKey, n) {
-      const p = parseDayKey(dayKey);
-      if (!p || !Number.isFinite(n)) return null;
-      const base = Date.UTC(p.year, p.month - 1, p.day);
-      const dt = new Date(base + n * DAY_MS);
-      const y = dt.getUTCFullYear();
-      const m = dt.getUTCMonth() + 1;
-      const d = dt.getUTCDate();
-      return `${y}-${pad2(m)}-${pad2(d)}`;
-    }
-
-    function dowFromDayKey(dayKey) {
-      const p = parseDayKey(dayKey);
-      if (!p) return null;
-      return new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay();
-    }
-
-    // weekKeyFromDayKey(dayKey) -> Monday dayKey
-    function weekKeyFromDayKey(dayKey) {
-      const dow = dowFromDayKey(dayKey);
-      if (dow === null) return null;
-      const diff = (dow + 6) % 7; // Monday=0 ... Sunday=6
-      return dayKeyAddDays(dayKey, -diff);
-    }
-
-    function currentDayKey() {
-      return dayKeyFromTs(Date.now());
-    }
-
-    function currentWeekKey() {
-      const dk = currentDayKey();
-      return dk ? weekKeyFromDayKey(dk) : null;
-    }
-
-    function monthKeyFromDayKey(dayKey) {
-      const p = parseDayKey(dayKey);
-      if (!p) return null;
-      return `${p.year}-${pad2(p.month)}-01`;
-    }
-
-    function addMonthsToMonthKey(monthKey, n) {
-      const p = parseDayKey(monthKey);
-      if (!p || !Number.isFinite(n)) return null;
-      const dt = new Date(Date.UTC(p.year, (p.month - 1) + n, 1));
-      const y = dt.getUTCFullYear();
-      const m = dt.getUTCMonth() + 1;
-      return `${y}-${pad2(m)}-01`;
-    }
-
-    function dayKeyDiffDays(startDayKey, endDayKeyExclusive) {
-      const a = parseDayKey(startDayKey);
-      const b = parseDayKey(endDayKeyExclusive);
-      if (!a || !b) return 1;
-      const ams = Date.UTC(a.year, a.month - 1, a.day);
-      const bms = Date.UTC(b.year, b.month - 1, b.day);
-      return Math.max(1, Math.round((bms - ams) / DAY_MS));
-    }
-
-    function monthNameFromIndex(idx) {
-      const names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-      return names[idx] || "";
-    }
-
-    function fmtDayKey(dayKey) {
-      const p = parseDayKey(dayKey);
-      if (!p) return "";
-      const m = monthNameFromIndex(p.month - 1).slice(0, 3);
-      return `${m} ${p.day}, ${p.year}`;
-    }
-
-    function fmtRangeDayKeys(startDayKey, endDayKeyExclusive) {
-      const endDayKey = dayKeyAddDays(endDayKeyExclusive, -1);
-      const a = fmtDayKey(startDayKey);
-      const b = fmtDayKey(endDayKey);
-      return a === b ? a : `${a} - ${b}`;
-    }
-
-    function plural(n, word) {
-      return Math.abs(n) === 1 ? word : word + "s";
+    function hideProfileModal() {
+      if (!el.profileModal) return;
+      el.profileModal.classList.add("hidden");
+      el.profileModal.setAttribute("aria-hidden", "true");
     }
 
     function cssVar(name, fallback = "") {
@@ -538,6 +558,15 @@
       } catch {
         return fallback;
       }
+    }
+
+    function monthNameFromIndex(idx) {
+      const names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      return names[idx] || "";
+    }
+
+    function plural(n, word) {
+      return Math.abs(n) === 1 ? word : word + "s";
     }
 
     function setQueryResult(html, ok) {
@@ -555,6 +584,39 @@
         .trim();
     }
 
+    function startOfDayLocal(dOrMs) {
+      const x = new Date(dOrMs);
+      x.setHours(0, 0, 0, 0);
+      return x.getTime();
+    }
+
+    function startOfWeekMonday(dOrMs) {
+      const dayStart = startOfDayLocal(dOrMs);
+      const day = new Date(dayStart).getDay();
+      const diff = (day + 6) % 7;
+      return dayStart - diff * DAY_MS;
+    }
+
+    function fmtDate(ms) {
+      try {
+        const d = new Date(ms);
+        const y = d.getFullYear();
+        const m = monthNameFromIndex(d.getMonth()).slice(0, 3);
+        const day = d.getDate();
+        return `${m} ${day}, ${y}`;
+      } catch {
+        return "";
+      }
+    }
+
+    function fmtRange(startMs, endMs, nowMs) {
+      const safeEnd = Math.max(startMs, endMs);
+      const endForDisplay = (safeEnd === nowMs) ? nowMs : (safeEnd - 1);
+      const a = fmtDate(startMs);
+      const b = fmtDate(endForDisplay);
+      return a === b ? a : `${a} - ${b}`;
+    }
+
     function parseNumber(qLower) {
       const m = qLower.match(/\b(\d{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/);
       if (!m) return null;
@@ -563,7 +625,6 @@
       return numberWords[t] ?? null;
     }
 
-    // PH0-4: eventsCache stores dayKey + weekKey (not browser-local dayStart/dow)
     function rebuildEventsCache() {
       const out = [];
       for (const entry of Object.values(allHistory || {})) {
@@ -573,12 +634,9 @@
         if (typeof u !== "string" || typeof ts !== "number") continue;
 
         const v = (typeof entry.value === "number" && Number.isFinite(entry.value)) ? entry.value : 1;
-        const dayKey = dayKeyFromTs(ts);
-        if (!dayKey) continue;
-        const weekKey = weekKeyFromDayKey(dayKey);
-        if (!weekKey) continue;
-
-        out.push({ user: u, ts, v, dayKey, weekKey });
+        const dayStart = startOfDayLocal(ts);
+        const dow = new Date(dayStart).getDay();
+        out.push({ user: u, ts, v, dayStart, dow });
       }
       out.sort((a, b) => a.ts - b.ts);
       eventsCache = out;
@@ -612,8 +670,22 @@
     }
 
     function parseUsers(qLower, intent) {
-      const hasMoe = /\bmoe\b/.test(qLower) || /\bme\b/.test(qLower) || /\bmy\b/.test(qLower);
-      const hasTrish = /\btrish\b/.test(qLower);
+      const selected = getSelectedUser();
+
+      const explicitMoe = /\bmoe\b/.test(qLower);
+      const explicitTrish = /\btrish\b/.test(qLower);
+
+      // "me/my/I" resolves to the chosen profile
+      const meSignals = /\b(me|my|mine|i|im|i'm|ive|i've)\b/.test(qLower);
+
+      let hasMoe = explicitMoe;
+      let hasTrish = explicitTrish;
+
+      if (meSignals) {
+        if (selected === "Moe") hasMoe = true;
+        else if (selected === "Trish") hasTrish = true;
+        else hasMoe = true; // fallback for safety
+      }
 
       const bothSignals = /\b(both|all|together|us|we|everyone)\b/.test(qLower) || (hasMoe && hasTrish);
 
@@ -669,28 +741,30 @@
       return null;
     }
 
-    function inferYearForMonthDay(monthIdx, day, nowDayKey, qLower, opts = {}) {
-      const nowParts = parseDayKey(nowDayKey);
-      if (!nowParts) return new Date().getFullYear();
+    function inferYearForMonthDay(monthIdx, day, now, opts = {}) {
+      const nowY = now.getFullYear();
+      const todayStart = startOfDayLocal(now);
 
-      const nowY = nowParts.year;
       const hasNext = !!opts.hasNext;
       const hasThis = !!opts.hasThis;
 
-      const candidate = `${nowY}-${pad2(monthIdx + 1)}-${pad2(day)}`;
+      let y = nowY;
+      let candidate = new Date(y, monthIdx, day, 0, 0, 0, 0).getTime();
 
       if (hasNext) {
-        if (candidate <= nowDayKey) return nowY + 1;
+        if (candidate <= todayStart) y = nowY + 1;
+        return y;
+      }
+
+      if (hasThis) {
         return nowY;
       }
 
-      if (hasThis) return nowY;
-
-      if (candidate > nowDayKey) return nowY - 1;
-      return nowY;
+      if (candidate > todayStart) y = nowY - 1;
+      return y;
     }
 
-    function parseDateStringToDayKey(dateStr, nowDayKey, qLower) {
+    function parseDateStringToDayStart(dateStr, now, qLower) {
       const s = String(dateStr || "").trim().toLowerCase();
       const hasNext = /\bnext\b/.test(qLower);
       const hasThis = /\bthis\b/.test(qLower) || /\bcurrent\b/.test(qLower);
@@ -698,56 +772,59 @@
       let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
       if (m) {
         const y = parseInt(m[1], 10);
-        const mo = parseInt(m[2], 10);
+        const mo = parseInt(m[2], 10) - 1;
         const d = parseInt(m[3], 10);
-        if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
-        return `${y}-${pad2(mo)}-${pad2(d)}`;
+        const dt = new Date(y, mo, d, 0, 0, 0, 0);
+        return isNaN(dt.getTime()) ? null : dt.getTime();
       }
 
       m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
       if (m) {
-        const mo = parseInt(m[1], 10);
+        const mo = parseInt(m[1], 10) - 1;
         const d = parseInt(m[2], 10);
         let y;
         if (m[3]) {
           y = parseInt(m[3], 10);
           if (y < 100) y = 2000 + y;
         } else {
-          y = inferYearForMonthDay(mo - 1, d, nowDayKey, qLower, { hasNext, hasThis });
+          y = inferYearForMonthDay(mo, d, now, { hasNext, hasThis });
         }
-        return `${y}-${pad2(mo)}-${pad2(d)}`;
+        const dt = new Date(y, mo, d, 0, 0, 0, 0);
+        return isNaN(dt.getTime()) ? null : dt.getTime();
       }
 
       m = s.match(/^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?$/);
       if (m) {
         const monthToken = m[1];
-        const moIdx = monthMap[monthToken] ?? null;
-        if (moIdx === null) return null;
+        const mo = monthMap[monthToken] ?? null;
+        if (mo === null) return null;
         const d = parseInt(m[2], 10);
-        const y = m[3] ? parseInt(m[3], 10) : inferYearForMonthDay(moIdx, d, nowDayKey, qLower, { hasNext, hasThis });
-        return `${y}-${pad2(moIdx + 1)}-${pad2(d)}`;
+        const y = m[3] ? parseInt(m[3], 10) : inferYearForMonthDay(mo, d, now, { hasNext, hasThis });
+        const dt = new Date(y, mo, d, 0, 0, 0, 0);
+        return isNaN(dt.getTime()) ? null : dt.getTime();
       }
 
       m = s.match(/^(\d{1,2})\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?$/);
       if (m) {
         const d = parseInt(m[1], 10);
         const monthToken = m[2];
-        const moIdx = monthMap[monthToken] ?? null;
-        if (moIdx === null) return null;
-        const y = m[3] ? parseInt(m[3], 10) : inferYearForMonthDay(moIdx, d, nowDayKey, qLower, { hasNext, hasThis });
-        return `${y}-${pad2(moIdx + 1)}-${pad2(d)}`;
+        const mo = monthMap[monthToken] ?? null;
+        if (mo === null) return null;
+        const y = m[3] ? parseInt(m[3], 10) : inferYearForMonthDay(mo, d, now, { hasNext, hasThis });
+        const dt = new Date(y, mo, d, 0, 0, 0, 0);
+        return isNaN(dt.getTime()) ? null : dt.getTime();
       }
 
       return null;
     }
 
-    function extractDateTokens(qLower, nowDayKey) {
+    function extractDateTokens(qLower, now) {
       const tokens = [];
 
       function addToken(text, idx) {
-        const dayKey = parseDateStringToDayKey(text, nowDayKey, qLower);
-        if (!dayKey) return;
-        tokens.push({ text, idx, len: text.length, dayKey });
+        const dayStart = parseDateStringToDayStart(text, now, qLower);
+        if (dayStart === null) return;
+        tokens.push({ text, idx, len: text.length, dayStart });
       }
 
       for (const match of qLower.matchAll(/\b(19\d{2}|20\d{2})-(\d{1,2})-(\d{1,2})\b/g)) addToken(match[0], match.index ?? 0);
@@ -758,7 +835,7 @@
       const seen = new Set();
       const deduped = [];
       for (const t of tokens.sort((a, b) => a.idx - b.idx)) {
-        const k = `${t.idx}:${t.len}:${t.dayKey}`;
+        const k = `${t.idx}:${t.len}:${t.dayStart}`;
         if (seen.has(k)) continue;
         seen.add(k);
         deduped.push(t);
@@ -766,7 +843,7 @@
       return deduped;
     }
 
-    function parseMonthRange(qLower, nowDayKey) {
+    function parseMonthRange(qLower, now) {
       let monthIdx = null;
 
       for (const [token, idx] of Object.entries(monthMap)) {
@@ -783,11 +860,8 @@
       if (monthIdx === null) return null;
 
       const yearMatch = qLower.match(/\b(19\d{2}|20\d{2})\b/);
-      const nowParts = parseDayKey(nowDayKey);
-      if (!nowParts) return null;
-
-      const nowY = nowParts.year;
-      const nowM = nowParts.month - 1;
+      const nowY = now.getFullYear();
+      const nowM = now.getMonth();
       const hasNext = /\bnext\b/.test(qLower);
       const hasLast = /\blast\b|\bprevious\b/.test(qLower);
       const hasThis = /\bthis\b|\bcurrent\b/.test(qLower);
@@ -805,83 +879,65 @@
         year = (monthIdx > nowM) ? nowY - 1 : nowY;
       }
 
-      const startDayKey = `${year}-${pad2(monthIdx + 1)}-01`;
-      const nextMonthStart = new Date(Date.UTC(year, monthIdx + 1, 1));
-      const endDayKeyExclusive = `${nextMonthStart.getUTCFullYear()}-${pad2(nextMonthStart.getUTCMonth() + 1)}-01`;
-
-      return { startDayKey, endDayKeyExclusive, label: `${monthNameFromIndex(monthIdx)} ${year}` };
+      const start = new Date(year, monthIdx, 1, 0, 0, 0, 0).getTime();
+      const end = new Date(year, monthIdx + 1, 1, 0, 0, 0, 0).getTime();
+      return { startMs: start, endMs: end, label: `${monthNameFromIndex(monthIdx)} ${year}` };
     }
 
-    // PH0-4: parseNamedRange uses NY dayKey + Monday weekKey (no browser local boundaries)
-    function parseNamedRange(qLower, nowDayKey, ctx) {
-      const todayDayKey = nowDayKey;
-      const tomorrowDayKey = dayKeyAddDays(todayDayKey, 1);
+    function parseNamedRange(qLower, now, ctx) {
+      const nowMs = now.getTime();
+      const todayStart = startOfDayLocal(now);
 
-      if (/\btoday\b/.test(qLower)) {
-        return { startDayKey: todayDayKey, endDayKeyExclusive: tomorrowDayKey, label: "today" };
-      }
-      if (/\byesterday\b/.test(qLower)) {
-        const y = dayKeyAddDays(todayDayKey, -1);
-        return { startDayKey: y, endDayKeyExclusive: todayDayKey, label: "yesterday" };
-      }
+      if (/\btoday\b/.test(qLower)) return { startMs: todayStart, endMs: nowMs, label: "today" };
+      if (/\byesterday\b/.test(qLower)) return { startMs: todayStart - DAY_MS, endMs: todayStart, label: "yesterday" };
 
-      if (/\bthis week\b/.test(qLower)) {
-        const wk = currentWeekKey();
-        return { startDayKey: wk, endDayKeyExclusive: tomorrowDayKey, label: "this week" };
-      }
+      if (/\bthis week\b/.test(qLower)) return { startMs: startOfWeekMonday(now), endMs: nowMs, label: "this week" };
 
       if (/\b(calendar last week|previous week|last calendar week)\b/.test(qLower)) {
-        const startThis = currentWeekKey();
-        const startLast = dayKeyAddDays(startThis, -7);
-        return { startDayKey: startLast, endDayKeyExclusive: startThis, label: "last week (Mon-Sun)" };
+        const startThis = startOfWeekMonday(now);
+        return { startMs: startThis - 7 * DAY_MS, endMs: startThis, label: "last week (Mon-Sun)" };
       }
 
       if (/\blast week\b/.test(qLower)) {
-        // Default to calendar last week (Mon-Sun) to match product week boundaries.
-        const startThis = currentWeekKey();
-        const startLast = dayKeyAddDays(startThis, -7);
-        return { startDayKey: startLast, endDayKeyExclusive: startThis, label: "last week (Mon-Sun)" };
+        if (ctx?.preferCalendarLastWeek) {
+          const startThis = startOfWeekMonday(now);
+          return { startMs: startThis - 7 * DAY_MS, endMs: startThis, label: "last week (Mon-Sun)" };
+        }
+        return { startMs: todayStart - 6 * DAY_MS, endMs: nowMs, label: "last week (past 7 days)" };
       }
 
       if (/\bthis month\b/.test(qLower)) {
-        const p = parseDayKey(todayDayKey);
-        const startDayKey = `${p.year}-${pad2(p.month)}-01`;
-        const endDayKeyExclusive = addMonthsToMonthKey(startDayKey, 1);
-        return { startDayKey, endDayKeyExclusive: tomorrowDayKey < endDayKeyExclusive ? tomorrowDayKey : endDayKeyExclusive, label: "this month" };
+        const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+        return { startMs: start, endMs: nowMs, label: "this month" };
       }
       if (/\blast month\b/.test(qLower)) {
-        const p = parseDayKey(todayDayKey);
-        const startThis = `${p.year}-${pad2(p.month)}-01`;
-        const startPrev = addMonthsToMonthKey(startThis, -1);
-        return { startDayKey: startPrev, endDayKeyExclusive: startThis, label: "last month" };
+        const startThis = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0).getTime();
+        const startPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0).getTime();
+        return { startMs: startPrev, endMs: startThis, label: "last month" };
       }
 
       if (/\bthis year\b/.test(qLower) || /\bcurrent year\b/.test(qLower) || /\bytd\b/.test(qLower)) {
-        const p = parseDayKey(todayDayKey);
-        const startDayKey = `${p.year}-01-01`;
-        return { startDayKey, endDayKeyExclusive: tomorrowDayKey, label: "this year" };
+        const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
+        return { startMs: start, endMs: nowMs, label: "this year" };
       }
       if (/\blast year\b|\bprevious year\b/.test(qLower)) {
-        const p = parseDayKey(todayDayKey);
-        const startThis = `${p.year}-01-01`;
-        const startPrev = `${p.year - 1}-01-01`;
-        return { startDayKey: startPrev, endDayKeyExclusive: startThis, label: "last year" };
+        const startThis = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
+        const startPrev = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0).getTime();
+        return { startMs: startPrev, endMs: startThis, label: "last year" };
       }
 
       if (/\blast weekend\b/.test(qLower)) {
-        // Weekend = Sat-Sun. Use current week (Mon start) and take the prior week's Sat-Sun.
-        const wk = currentWeekKey();
-        const satThisWeek = dayKeyAddDays(wk, 5);
-        const satLastWeek = dayKeyAddDays(satThisWeek, -7);
-        const endExclusive = dayKeyAddDays(satLastWeek, 2);
-        return { startDayKey: satLastWeek, endDayKeyExclusive: endExclusive, label: "last weekend" };
+        const weekStart = startOfWeekMonday(now);
+        const satThisWeek = weekStart + 5 * DAY_MS;
+        const satLastWeek = satThisWeek - 7 * DAY_MS;
+        const end = satLastWeek + 2 * DAY_MS;
+        return { startMs: satLastWeek, endMs: end, label: "last weekend" };
       }
       if (/\bthis weekend\b/.test(qLower)) {
-        const wk = currentWeekKey();
-        const satThisWeek = dayKeyAddDays(wk, 5);
-        const endExclusive = dayKeyAddDays(satThisWeek, 2);
-        const capEnd = (tomorrowDayKey < endExclusive) ? tomorrowDayKey : endExclusive;
-        return { startDayKey: satThisWeek, endDayKeyExclusive: capEnd, label: "this weekend" };
+        const weekStart = startOfWeekMonday(now);
+        const satThisWeek = weekStart + 5 * DAY_MS;
+        const end = satThisWeek + 2 * DAY_MS;
+        return { startMs: satThisWeek, endMs: Math.min(end, nowMs), label: "this weekend" };
       }
 
       const wd = qLower.match(/\b(last|this|next)\s+(sun(?:day)?|mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?)\b/);
@@ -891,50 +947,45 @@
         const target = DOW_ALIASES[raw];
         if (target === undefined || target === null) return null;
 
-        const todayDow = dowFromDayKey(todayDayKey);
+        const todayDow = new Date(todayStart).getDay();
 
         if (mod === "last") {
           let diff = (todayDow - target + 7) % 7;
           if (diff === 0) diff = 7;
-          const dk = dayKeyAddDays(todayDayKey, -diff);
-          return { startDayKey: dk, endDayKeyExclusive: dayKeyAddDays(dk, 1), label: `last ${DOW_FULL[target]}` };
+          const dayStart = todayStart - diff * DAY_MS;
+          return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `last ${DOW_FULL[target]}` };
         }
 
-        const wk = currentWeekKey();
-        const offset = (target + 6) % 7; // Monday=0 ... Sunday=6
-        const thisDk = dayKeyAddDays(wk, offset);
+        const weekStart = startOfWeekMonday(now);
+        const offset = (target + 6) % 7;
+        const dayStart = weekStart + offset * DAY_MS;
 
-        if (mod === "this") {
-          return { startDayKey: thisDk, endDayKeyExclusive: dayKeyAddDays(thisDk, 1), label: `this ${DOW_FULL[target]}` };
-        }
-
-        const nextDk = dayKeyAddDays(thisDk, 7);
-        return { startDayKey: nextDk, endDayKeyExclusive: dayKeyAddDays(nextDk, 1), label: `next ${DOW_FULL[target]}` };
+        if (mod === "this") return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `this ${DOW_FULL[target]}` };
+        return { startMs: dayStart + 7 * DAY_MS, endMs: dayStart + 8 * DAY_MS, label: `next ${DOW_FULL[target]}` };
       }
 
       const onWd = qLower.match(/\bon\s+(sun(?:day)?|mon(?:day)?|tue(?:s|sday|sday)?|tues(?:day)?|wed(?:s|nesday)?|thu(?:r|rs|rsday|rsday)?|thurs(?:day)?|thur(?:sday)?|fri(?:day)?|sat(?:urday)?)\b/);
       if (onWd) {
         const raw = onWd[1].replace(/sday|nesday|rsday|urday/g, "");
         const target = DOW_ALIASES[raw];
-        const todayDow = dowFromDayKey(todayDayKey);
+        const todayDow = new Date(todayStart).getDay();
         const diff = (todayDow - target + 7) % 7;
-        const dk = dayKeyAddDays(todayDayKey, -diff);
-        return { startDayKey: dk, endDayKeyExclusive: dayKeyAddDays(dk, 1), label: `on ${DOW_FULL[target]}` };
+        const dayStart = todayStart - diff * DAY_MS;
+        return { startMs: dayStart, endMs: dayStart + DAY_MS, label: `on ${DOW_FULL[target]}` };
       }
 
       return null;
     }
 
-    function parseNumericRelative(qLower, nowDayKey) {
-      const todayDayKey = nowDayKey;
-      const tomorrowDayKey = dayKeyAddDays(todayDayKey, 1);
+    function parseNumericRelative(qLower, now) {
+      const nowMs = now.getTime();
+      const todayStart = startOfDayLocal(now);
 
       const days = qLower.match(/\b(past|last)\s+(\d{1,3}|a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\s+days?\b/);
       if (days) {
         const n = /^\d+$/.test(days[2]) ? parseInt(days[2], 10) : (numberWords[days[2]] ?? 1);
         const nn = Math.max(1, n);
-        const startDayKey = dayKeyAddDays(todayDayKey, -(nn - 1));
-        return { startDayKey, endDayKeyExclusive: tomorrowDayKey, label: `past ${nn} ${plural(nn, "day")}` };
+        return { startMs: todayStart - (nn - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "day")}` };
       }
 
       const weeks = qLower.match(/\b(past|last)\s+(\d{1,2}|a|an|one|two|three|four|five|six|seven|eight)\s+weeks?\b/);
@@ -942,8 +993,7 @@
         const n = /^\d+$/.test(weeks[2]) ? parseInt(weeks[2], 10) : (numberWords[weeks[2]] ?? 1);
         const nn = Math.max(1, n);
         const daysCount = nn * 7;
-        const startDayKey = dayKeyAddDays(todayDayKey, -(daysCount - 1));
-        return { startDayKey, endDayKeyExclusive: tomorrowDayKey, label: `past ${nn} ${plural(nn, "week")}` };
+        return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "week")}` };
       }
 
       const months = qLower.match(/\b(past|last)\s+(\d{1,2}|a|an|one|two|three|four|five|six)\s+months?\b/);
@@ -951,38 +1001,36 @@
         const n = /^\d+$/.test(months[2]) ? parseInt(months[2], 10) : (numberWords[months[2]] ?? 1);
         const nn = Math.max(1, n);
         const daysCount = nn * 30;
-        const startDayKey = dayKeyAddDays(todayDayKey, -(daysCount - 1));
-        return { startDayKey, endDayKeyExclusive: tomorrowDayKey, label: `past ${nn} ${plural(nn, "month")}` };
+        return { startMs: todayStart - (daysCount - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} ${plural(nn, "month")}` };
       }
 
       const nDays = qLower.match(/\blast\s+(7|30)\s+days?\b/);
       if (nDays) {
         const nn = parseInt(nDays[1], 10);
-        const startDayKey = dayKeyAddDays(todayDayKey, -(nn - 1));
-        return { startDayKey, endDayKeyExclusive: tomorrowDayKey, label: `past ${nn} days` };
+        return { startMs: todayStart - (nn - 1) * DAY_MS, endMs: nowMs, label: `past ${nn} days` };
       }
 
       return null;
     }
 
-    function resolveTimeRange(rawQ, nowDayKey, ctx) {
+    function resolveTimeRange(rawQ, now, ctx) {
       const qLower = normalizeQuery(rawQ);
-      const todayDayKey = nowDayKey;
-      const tomorrowDayKey = dayKeyAddDays(todayDayKey, 1);
+      const nowMs = now.getTime();
+      const todayStart = startOfDayLocal(now);
 
       const dayFilter = parseDayFilter(qLower);
-      const dateTokens = extractDateTokens(qLower, nowDayKey);
+      const dateTokens = extractDateTokens(qLower, now);
 
       if (/\bsince\b/.test(qLower) && dateTokens.length >= 1) {
         const sinceIdx = qLower.indexOf("since");
         const t = dateTokens.find(x => x.idx >= sinceIdx) || dateTokens[0];
-        return { startDayKey: t.dayKey, endDayKeyExclusive: tomorrowDayKey, label: `since ${fmtDayKey(t.dayKey)}` };
+        return { startMs: t.dayStart, endMs: nowMs, label: `since ${fmtDate(t.dayStart)}` };
       }
 
       if (/\bon\b/.test(qLower) && dateTokens.length >= 1) {
         const onIdx = qLower.indexOf("on");
         const t = dateTokens.find(x => x.idx >= onIdx) || dateTokens[0];
-        return { startDayKey: t.dayKey, endDayKeyExclusive: dayKeyAddDays(t.dayKey, 1), label: `on ${fmtDayKey(t.dayKey)}` };
+        return { startMs: t.dayStart, endMs: t.dayStart + DAY_MS, label: `on ${fmtDate(t.dayStart)}` };
       }
 
       if (/\bbetween\b/.test(qLower) && dateTokens.length >= 2) {
@@ -990,9 +1038,9 @@
         const andIdx = qLower.indexOf(" and ", betweenIdx);
         const t1 = dateTokens.find(x => x.idx >= betweenIdx) || dateTokens[0];
         const t2 = (andIdx >= 0 ? dateTokens.find(x => x.idx >= andIdx) : null) || dateTokens[1];
-        const start = (t1.dayKey <= t2.dayKey) ? t1.dayKey : t2.dayKey;
-        const endInclusive = (t1.dayKey <= t2.dayKey) ? t2.dayKey : t1.dayKey;
-        return { startDayKey: start, endDayKeyExclusive: dayKeyAddDays(endInclusive, 1), label: `between ${fmtDayKey(start)} and ${fmtDayKey(endInclusive)}` };
+        const start = Math.min(t1.dayStart, t2.dayStart);
+        const end = Math.max(t1.dayStart, t2.dayStart) + DAY_MS;
+        return { startMs: start, endMs: end, label: `between ${fmtDate(start)} and ${fmtDate(end - DAY_MS)}` };
       }
 
       if (/\bfrom\b/.test(qLower) && dateTokens.length >= 2) {
@@ -1000,9 +1048,9 @@
         const toIdx = qLower.indexOf(" to ", fromIdx);
         const t1 = dateTokens.find(x => x.idx >= fromIdx) || dateTokens[0];
         const t2 = (toIdx >= 0 ? dateTokens.find(x => x.idx >= toIdx) : null) || dateTokens[1];
-        const start = (t1.dayKey <= t2.dayKey) ? t1.dayKey : t2.dayKey;
-        const endInclusive = (t1.dayKey <= t2.dayKey) ? t2.dayKey : t1.dayKey;
-        return { startDayKey: start, endDayKeyExclusive: dayKeyAddDays(endInclusive, 1), label: `${fmtDayKey(start)} to ${fmtDayKey(endInclusive)}` };
+        const start = Math.min(t1.dayStart, t2.dayStart);
+        const end = Math.max(t1.dayStart, t2.dayStart) + DAY_MS;
+        return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
       }
 
       if (dateTokens.length >= 2) {
@@ -1014,43 +1062,43 @@
           const isDashRange = mid === "-" || mid === "\u2013" || mid === "\u2014";
           const isToRange = mid === "to" || mid === "thru" || mid === "through" || mid === "until";
 
-          if (isDashRange || isToRange || /^-$/.test(mid)) {
-            const start = (a.dayKey <= b.dayKey) ? a.dayKey : b.dayKey;
-            const endInclusive = (a.dayKey <= b.dayKey) ? b.dayKey : a.dayKey;
-            return { startDayKey: start, endDayKeyExclusive: dayKeyAddDays(endInclusive, 1), label: `${fmtDayKey(start)} to ${fmtDayKey(endInclusive)}` };
+          if (isDashRange || isToRange) {
+            const start = Math.min(a.dayStart, b.dayStart);
+            const end = Math.max(a.dayStart, b.dayStart) + DAY_MS;
+            return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
+          }
+
+          if (/^-$/.test(mid)) {
+            const start = Math.min(a.dayStart, b.dayStart);
+            const end = Math.max(a.dayStart, b.dayStart) + DAY_MS;
+            return { startMs: start, endMs: end, label: `${fmtDate(start)} to ${fmtDate(end - DAY_MS)}` };
           }
         }
       }
 
-      const monthRange = parseMonthRange(qLower, nowDayKey);
+      const monthRange = parseMonthRange(qLower, now);
       if (monthRange) return monthRange;
 
-      const named = parseNamedRange(qLower, nowDayKey, ctx);
+      const named = parseNamedRange(qLower, now, ctx);
       if (named) return named;
 
-      const rel = parseNumericRelative(qLower, nowDayKey);
+      const rel = parseNumericRelative(qLower, now);
       if (rel) return rel;
 
-      if (/\bweek\b/.test(qLower)) {
-        return { startDayKey: dayKeyAddDays(todayDayKey, -6), endDayKeyExclusive: tomorrowDayKey, label: "past 7 days" };
-      }
-      if (/\bmonth\b/.test(qLower)) {
-        return { startDayKey: dayKeyAddDays(todayDayKey, -29), endDayKeyExclusive: tomorrowDayKey, label: "past 30 days" };
-      }
+      if (/\bweek\b/.test(qLower)) return { startMs: todayStart - 6 * DAY_MS, endMs: nowMs, label: "past 7 days" };
+      if (/\bmonth\b/.test(qLower)) return { startMs: todayStart - 29 * DAY_MS, endMs: nowMs, label: "past 30 days" };
 
       if (dayFilter && /\b(this year|last year|this month|last month|this week|last week|past|last|since|between|from|\d{1,2}\/\d{1,2}|20\d{2}-\d{1,2}-\d{1,2})\b/.test(qLower) === false) {
-        const p = parseDayKey(todayDayKey);
-        const startDayKey = `${p.year}-01-01`;
-        return { startDayKey, endDayKeyExclusive: tomorrowDayKey, label: "this year" };
+        const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0).getTime();
+        return { startMs: start, endMs: nowMs, label: "this year" };
       }
 
       return null;
     }
 
-    // PH0-4: aggregate uses dayKey range and derives dow/weekKey from dayKey
     function aggregate(users, range, filters) {
-      const startDayKey = range.startDayKey;
-      const endDayKeyExclusive = range.endDayKeyExclusive;
+      const startMs = range.startMs;
+      const endMs = range.endMs;
       const dayFilter = filters?.dayFilter;
 
       const sums = {};
@@ -1061,33 +1109,30 @@
       }
 
       let total = 0;
-      const perDay = new Map(); // key: dayKey
-      const perDow = new Map(); // key: 0-6
+      const perDay = new Map();
+      const perDow = new Map();
 
       const allowedDays = dayFilter?.days ? new Set(dayFilter.days) : null;
 
       for (const e of eventsCache) {
         if (!e) continue;
+        if (e.ts < startMs || e.ts >= endMs) continue;
         if (!sums.hasOwnProperty(e.user)) continue;
 
-        const dk = e.dayKey;
-        if (dk < startDayKey || dk >= endDayKeyExclusive) continue;
-
-        const dow = dowFromDayKey(dk);
-        if (allowedDays && !allowedDays.has(dow)) continue;
+        if (allowedDays && !allowedDays.has(e.dow)) continue;
 
         sums[e.user] += e.v;
         total += e.v;
 
-        daySets[e.user].add(dk);
+        daySets[e.user].add(e.dayStart);
 
-        if (!perDay.has(dk)) perDay.set(dk, { Moe: 0, Trish: 0, total: 0 });
-        const pd = perDay.get(dk);
+        if (!perDay.has(e.dayStart)) perDay.set(e.dayStart, { Moe: 0, Trish: 0, total: 0 });
+        const pd = perDay.get(e.dayStart);
         pd[e.user] = (pd[e.user] || 0) + e.v;
         pd.total += e.v;
 
-        if (!perDow.has(dow)) perDow.set(dow, { Moe: 0, Trish: 0, total: 0 });
-        const pw = perDow.get(dow);
+        if (!perDow.has(e.dow)) perDow.set(e.dow, { Moe: 0, Trish: 0, total: 0 });
+        const pw = perDow.get(e.dow);
         pw[e.user] = (pw[e.user] || 0) + e.v;
         pw.total += e.v;
       }
@@ -1095,8 +1140,10 @@
       return { sums, total, perDay, perDow, daySets };
     }
 
-    function daysTouchedByRange(range) {
-      return dayKeyDiffDays(range.startDayKey, range.endDayKeyExclusive);
+    function daysTouchedByRange(range, nowMs) {
+      const start = startOfDayLocal(range.startMs);
+      const end = startOfDayLocal(Math.max(range.startMs, Math.min(range.endMs, nowMs) - 1)) + DAY_MS;
+      return Math.max(1, Math.round((end - start) / DAY_MS));
     }
 
     let queryChart = null;
@@ -1119,25 +1166,24 @@
     }
 
     function calcRangeSpanDays(range) {
-      return dayKeyDiffDays(range.startDayKey, range.endDayKeyExclusive);
+      const startDay = startOfDayLocal(range.startMs);
+      const endDay = startOfDayLocal(Math.max(range.startMs, range.endMs - 1));
+      return Math.max(1, Math.round((endDay - startDay) / DAY_MS) + 1);
     }
 
-    function labelForDay(dayKey) {
-      const p = parseDayKey(dayKey);
-      if (!p) return "";
-      return `${monthNameFromIndex(p.month - 1).slice(0,3)} ${p.day}`;
+    function labelForDay(dayStartMs) {
+      const d = new Date(dayStartMs);
+      return `${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getDate()}`;
     }
 
-    function labelForWeek(weekStartDayKey) {
-      const p = parseDayKey(weekStartDayKey);
-      if (!p) return "Week";
-      return `Week of ${monthNameFromIndex(p.month - 1).slice(0,3)} ${p.day}`;
+    function labelForWeek(weekStartMs) {
+      const d = new Date(weekStartMs);
+      return `Week of ${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getDate()}`;
     }
 
-    function labelForMonth(monthStartDayKey) {
-      const p = parseDayKey(monthStartDayKey);
-      if (!p) return "Month";
-      return `${monthNameFromIndex(p.month - 1).slice(0,3)} ${p.year}`;
+    function labelForMonth(monthStartMs) {
+      const d = new Date(monthStartMs);
+      return `${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getFullYear()}`;
     }
 
     function renderChart(intent, userInfo, agg, range) {
@@ -1277,11 +1323,10 @@
       });
     }
 
-    // PH0-4: buildTimeBucketsFromPerDay uses weekKeyFromDayKey (NY Monday weeks)
     function buildTimeBucketsFromPerDay(perDayMap, range) {
-      const startDayKey = range.startDayKey;
-      const endDayKeyInclusive = dayKeyAddDays(range.endDayKeyExclusive, -1);
-      const spanDays = calcRangeSpanDays(range);
+      const startDay = startOfDayLocal(range.startMs);
+      const endDay = startOfDayLocal(Math.max(range.startMs, range.endMs - 1));
+      const spanDays = Math.max(1, Math.round((endDay - startDay) / DAY_MS) + 1);
 
       let mode = "day";
       if (spanDays > 90) mode = "month";
@@ -1298,34 +1343,40 @@
       }
 
       if (mode === "day") {
-        let dk = startDayKey;
-        while (dk <= endDayKeyInclusive) {
-          ensureBucket(dk, labelForDay(dk));
-          dk = dayKeyAddDays(dk, 1);
-        }
+        for (let t = startDay; t <= endDay; t += DAY_MS) ensureBucket(t, labelForDay(t));
       } else if (mode === "week") {
-        let wk = weekKeyFromDayKey(startDayKey);
-        const endWk = weekKeyFromDayKey(endDayKeyInclusive);
-        while (wk <= endWk) {
-          ensureBucket(wk, labelForWeek(wk));
-          wk = dayKeyAddDays(wk, 7);
-        }
+        let t = startOfWeekMonday(startDay);
+        const endW = startOfWeekMonday(endDay);
+        for (; t <= endW; t += 7 * DAY_MS) ensureBucket(t, labelForWeek(t));
       } else {
-        let mk = monthKeyFromDayKey(startDayKey);
-        const endMk = monthKeyFromDayKey(endDayKeyInclusive);
-        while (mk <= endMk) {
-          ensureBucket(mk, labelForMonth(mk));
-          mk = addMonthsToMonthKey(mk, 1);
+        const s = new Date(startDay);
+        s.setDate(1); s.setHours(0,0,0,0);
+        const e = new Date(endDay);
+        e.setDate(1); e.setHours(0,0,0,0);
+
+        let y = s.getFullYear();
+        let m = s.getMonth();
+        const endY = e.getFullYear();
+        const endM = e.getMonth();
+
+        while (y < endY || (y === endY && m <= endM)) {
+          const t = new Date(y, m, 1, 0, 0, 0, 0).getTime();
+          ensureBucket(t, labelForMonth(t));
+          m += 1;
+          if (m > 11) { m = 0; y += 1; }
         }
       }
 
-      for (const [dayKey, rec] of perDayMap.entries()) {
-        if (dayKey < startDayKey || dayKey > endDayKeyInclusive) continue;
+      for (const [dayStart, rec] of perDayMap.entries()) {
+        if (dayStart < startDay || dayStart > endDay) continue;
 
         let key;
-        if (mode === "day") key = dayKey;
-        else if (mode === "week") key = weekKeyFromDayKey(dayKey);
-        else key = monthKeyFromDayKey(dayKey);
+        if (mode === "day") key = dayStart;
+        else if (mode === "week") key = startOfWeekMonday(dayStart);
+        else {
+          const d = new Date(dayStart);
+          key = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0).getTime();
+        }
 
         if (!bucketMap.has(key)) continue;
         const b = bucketMap.get(key);
@@ -1340,6 +1391,7 @@
 
     const EXAMPLES_HTML = `
       Try questions like:<small>
+      How many drinks did I have today?<br>
       How many drinks did Moe have today?<br>
       How many drinks did Trish have in December 2025?<br>
       How many drinks both last week?<br>
@@ -1354,9 +1406,8 @@
       destroyQueryChart();
 
       const raw = (el.queryInput?.value || "").trim();
-      const nowDayKey = currentDayKey();
-      const todayDayKey = nowDayKey;
-      const tomorrowDayKey = dayKeyAddDays(todayDayKey, 1);
+      const now = new Date();
+      const nowMs = now.getTime();
 
       if (!raw) {
         setQueryResult(EXAMPLES_HTML, false);
@@ -1368,8 +1419,18 @@
       const userInfo = parseUsers(qLower, intent);
       const dayFilter = parseDayFilter(qLower);
 
+      // Minimal support to prove "my" binding for streak queries (streaks implemented later)
+      if (/\bstreak\b/.test(qLower)) {
+        const who = (userInfo.users.length === 1) ? userInfo.users[0] : "Moe and Trish";
+        setQueryResult(
+          `${who} streaks are not available in this build yet.<small>Tip: ask for drinks today, last week, or a date range.</small>`,
+          true
+        );
+        return;
+      }
+
       const preferCalendarLastWeek = !!(dayFilter && /\blast week\b/.test(qLower));
-      const range = resolveTimeRange(raw, nowDayKey, { preferCalendarLastWeek });
+      const range = resolveTimeRange(raw, now, { preferCalendarLastWeek });
 
       if (!range) {
         setQueryResult(
@@ -1381,10 +1442,9 @@
         return;
       }
 
-      // Future start in NY calendar terms
-      if (range.startDayKey > todayDayKey) {
+      if (range.startMs > nowMs) {
         setQueryResult(
-          `That time range starts in the future (${fmtDayKey(range.startDayKey)}).<small>
+          `That time range starts in the future (${fmtDate(range.startMs)}).<small>
           Try "last weekend" or "last Friday" for past results.
           </small>`,
           false
@@ -1392,25 +1452,19 @@
         return;
       }
 
-      // Cap open-ended ranges to include "today" at most
-      const cappedRange = {
-        ...range,
-        endDayKeyExclusive: (range.endDayKeyExclusive > tomorrowDayKey) ? tomorrowDayKey : range.endDayKeyExclusive
-      };
-
       const filters = { dayFilter };
-      const agg = aggregate(userInfo.users, cappedRange, filters);
+      const agg = aggregate(userInfo.users, range, filters);
 
       const moeN = agg.sums["Moe"] || 0;
       const trishN = agg.sums["Trish"] || 0;
 
-      const rangeText = fmtRangeDayKeys(cappedRange.startDayKey, cappedRange.endDayKeyExclusive);
+      const rangeText = fmtRange(range.startMs, range.endMs, nowMs);
       const filterText = dayFilter ? `, filter: ${dayFilter.label}` : "";
       const meta = `<small>Range used: ${rangeText}${filterText}</small>`;
 
       function finish(html, ok) {
         setQueryResult(html, ok);
-        if (ok) renderChart(intent, userInfo, agg, cappedRange);
+        if (ok) renderChart(intent, userInfo, agg, range);
       }
 
       if (intent.type === "comparison") {
@@ -1420,15 +1474,15 @@
           const who = [];
           if (moeN > 0) who.push(`Moe (${moeN})`);
           if (trishN > 0) who.push(`Trish (${trishN})`);
-          if (who.length === 0) finish(`No drinks logged in ${cappedRange.label}.${meta}`, true);
-          else if (who.length === 1) finish(`${who[0]} logged drinks in ${cappedRange.label}.${meta}`, true);
-          else finish(`${who.join(" and ")} logged drinks in ${cappedRange.label}.${meta}`, true);
+          if (who.length === 0) finish(`No drinks logged in ${range.label}.${meta}`, true);
+          else if (who.length === 1) finish(`${who[0]} logged drinks in ${range.label}.${meta}`, true);
+          else finish(`${who.join(" and ")} logged drinks in ${range.label}.${meta}`, true);
           return;
         }
 
         const leader = moeN === trishN ? null : (moeN > trishN ? "Moe" : "Trish");
         if (!leader) {
-          finish(`Tie - Moe and Trish both had ${moeN} ${plural(moeN, "drink")} in ${cappedRange.label}.${meta}`, true);
+          finish(`Tie - Moe and Trish both had ${moeN} ${plural(moeN, "drink")} in ${range.label}.${meta}`, true);
           return;
         }
 
@@ -1440,11 +1494,11 @@
           const askedTrishMore = /\btrish\b.*\bmore than\b.*\bmoe\b|\bmore than\b.*\bmoe\b.*\btrish\b/.test(qLower) || /\btrish\b.*\bmore than\b/.test(qLower);
           const trishMore = trishN > moeN;
           const answer = askedTrishMore ? (trishMore ? "Yes" : "No") : (trishMore ? "No" : "Yes");
-          finish(`${answer} - Moe: ${moeN}, Trish: ${trishN} in ${cappedRange.label}.${meta}`, true);
+          finish(`${answer} - Moe: ${moeN}, Trish: ${trishN} in ${range.label}.${meta}`, true);
           return;
         }
 
-        finish(`${leader} had more drinks than ${leader === "Moe" ? "Trish" : "Moe"} in ${cappedRange.label} (${a} vs ${b}).${meta}`, true);
+        finish(`${leader} had more drinks than ${leader === "Moe" ? "Trish" : "Moe"} in ${range.label} (${a} vs ${b}).${meta}`, true);
         return;
       }
 
@@ -1453,30 +1507,30 @@
         if (userInfo.users.length === 1) {
           const u = userInfo.users[0];
           const n = agg.sums[u] || 0;
-          finish(`${u} had ${n} ${plural(n, "drink")} in ${cappedRange.label}.${meta}`, true);
+          finish(`${u} had ${n} ${plural(n, "drink")} in ${range.label}.${meta}`, true);
           return;
         }
         const leader = moeN === trishN ? null : (moeN > trishN ? "Moe" : "Trish");
         if (!leader) {
-          finish(`Difference is 0 - Moe and Trish are tied at ${moeN} in ${cappedRange.label}.${meta}`, true);
+          finish(`Difference is 0 - Moe and Trish are tied at ${moeN} in ${range.label}.${meta}`, true);
           return;
         }
-        finish(`${leader} led by ${diff} ${plural(diff, "drink")} in ${cappedRange.label} (Moe ${moeN} vs Trish ${trishN}).${meta}`, true);
+        finish(`${leader} led by ${diff} ${plural(diff, "drink")} in ${range.label} (Moe ${moeN} vs Trish ${trishN}).${meta}`, true);
         return;
       }
 
       if (intent.type === "average") {
-        const daysCount = daysTouchedByRange(cappedRange);
+        const daysCount = daysTouchedByRange(range, nowMs);
         if (userInfo.users.length === 1) {
           const u = userInfo.users[0];
           const n = agg.sums[u] || 0;
           const avg = n / daysCount;
-          finish(`${u} averaged ${avg.toFixed(2)} drinks per day in ${cappedRange.label} (${n} total over ${daysCount} ${plural(daysCount, "day")}).${meta}`, true);
+          finish(`${u} averaged ${avg.toFixed(2)} drinks per day in ${range.label} (${n} total over ${daysCount} ${plural(daysCount, "day")}).${meta}`, true);
           return;
         }
         const total = agg.total || 0;
         const avg = total / daysCount;
-        finish(`Average ${avg.toFixed(2)} drinks per day in ${cappedRange.label} (${total} total over ${daysCount} ${plural(daysCount, "day")}).<br>Moe ${moeN}, Trish ${trishN}.${meta}`, true);
+        finish(`Average ${avg.toFixed(2)} drinks per day in ${range.label} (${total} total over ${daysCount} ${plural(daysCount, "day")}).<br>Moe ${moeN}, Trish ${trishN}.${meta}`, true);
         return;
       }
 
@@ -1484,40 +1538,40 @@
         if (userInfo.users.length === 1) {
           const u = userInfo.users[0];
           const d = agg.daySets[u]?.size || 0;
-          finish(`${u} logged drinks on ${d} ${plural(d, "day")} in ${cappedRange.label}.${meta}`, true);
+          finish(`${u} logged drinks on ${d} ${plural(d, "day")} in ${range.label}.${meta}`, true);
           return;
         }
         const dM = agg.daySets["Moe"]?.size || 0;
         const dT = agg.daySets["Trish"]?.size || 0;
-        finish(`Days with drinks in ${cappedRange.label}: Moe ${dM}, Trish ${dT}.${meta}`, true);
+        finish(`Days with drinks in ${range.label}: Moe ${dM}, Trish ${dT}.${meta}`, true);
         return;
       }
 
       if (intent.type === "peak_day") {
-        let bestDayKey = null;
+        let bestDay = null;
         let bestVal = -Infinity;
 
-        for (const [dayKey, rec] of agg.perDay.entries()) {
+        for (const [dayStart, rec] of agg.perDay.entries()) {
           const val = (userInfo.users.length === 1)
             ? (rec[userInfo.users[0]] || 0)
             : (rec.total || 0);
-          if (val > bestVal) { bestVal = val; bestDayKey = dayKey; }
+          if (val > bestVal) { bestVal = val; bestDay = dayStart; }
         }
 
-        if (bestDayKey === null || bestVal <= 0) {
-          finish(`No drinks logged in ${cappedRange.label}.${meta}`, true);
+        if (bestDay === null || bestVal <= 0) {
+          finish(`No drinks logged in ${range.label}.${meta}`, true);
           return;
         }
 
-        const when = fmtDayKey(bestDayKey);
+        const when = fmtDate(bestDay);
         if (userInfo.users.length === 1) {
           const u = userInfo.users[0];
-          finish(`${u}'s peak day in ${cappedRange.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")}.${meta}`, true);
+          finish(`${u}'s peak day in ${range.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")}.${meta}`, true);
           return;
         }
 
-        const rec = agg.perDay.get(bestDayKey);
-        finish(`Peak day in ${cappedRange.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")} total.<br>Moe ${rec.Moe || 0}, Trish ${rec.Trish || 0}.${meta}`, true);
+        const rec = agg.perDay.get(bestDay);
+        finish(`Peak day in ${range.label} was ${when} with ${bestVal} ${plural(bestVal, "drink")} total.<br>Moe ${rec.Moe || 0}, Trish ${rec.Trish || 0}.${meta}`, true);
         return;
       }
 
@@ -1537,24 +1591,24 @@
             }
           }
           const header = (userInfo.users.length === 1)
-            ? `${userInfo.users[0]} breakdown by day of week in ${cappedRange.label}:`
-            : `Total breakdown by day of week in ${cappedRange.label}:`;
+            ? `${userInfo.users[0]} breakdown by day of week in ${range.label}:`
+            : `Total breakdown by day of week in ${range.label}:`;
 
           finish(`${header}<br>${lines.join(" | ")}${meta}`, true);
           return;
         }
 
-        const days = Array.from(agg.perDay.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        const days = Array.from(agg.perDay.entries()).sort((a, b) => a[0] - b[0]);
         if (days.length === 0) {
-          finish(`No drinks logged in ${cappedRange.label}.${meta}`, true);
+          finish(`No drinks logged in ${range.label}.${meta}`, true);
           return;
         }
 
         const maxLines = 10;
         const shown = days.slice(-maxLines);
-        const rows = shown.map(([dayKey, rec]) => {
-          const p = parseDayKey(dayKey);
-          const dayLabel = `${monthNameFromIndex(p.month - 1).slice(0,3)} ${p.day}`;
+        const rows = shown.map(([dayStart, rec]) => {
+          const d = new Date(dayStart);
+          const dayLabel = `${monthNameFromIndex(d.getMonth()).slice(0,3)} ${d.getDate()}`;
           if (userInfo.users.length === 1) {
             const u = userInfo.users[0];
             return `${dayLabel}: ${rec[u] || 0}`;
@@ -1563,8 +1617,8 @@
         });
 
         const header = (days.length > maxLines)
-          ? `Day-by-day (showing last ${maxLines} days in range) for ${cappedRange.label}:`
-          : `Day-by-day for ${cappedRange.label}:`;
+          ? `Day-by-day (showing last ${maxLines} days in range) for ${range.label}:`
+          : `Day-by-day for ${range.label}:`;
 
         finish(`${header}<br>${rows.join("<br>")}${meta}`, true);
         return;
@@ -1574,26 +1628,25 @@
         const who = [];
         if (moeN > 0) who.push(`Moe (${moeN})`);
         if (trishN > 0) who.push(`Trish (${trishN})`);
-        if (who.length === 0) finish(`No drinks logged in ${cappedRange.label}.${meta}`, true);
-        else finish(`${who.join(" and ")} logged drinks in ${cappedRange.label}.${meta}`, true);
+        if (who.length === 0) finish(`No drinks logged in ${range.label}.${meta}`, true);
+        else finish(`${who.join(" and ")} logged drinks in ${range.label}.${meta}`, true);
         return;
       }
 
       if (userInfo.users.length === 1) {
         const u = userInfo.users[0];
         const n = agg.sums[u] || 0;
-        finish(`${u} had ${n} ${plural(n, "drink")} in ${cappedRange.label}.${meta}`, true);
+        finish(`${u} had ${n} ${plural(n, "drink")} in ${range.label}.${meta}`, true);
         return;
       }
 
       const total = agg.total || 0;
-      finish(`Moe had ${moeN} ${plural(moeN, "drink")}, Trish had ${trishN} ${plural(trishN, "drink")}. Total ${total} ${plural(total, "drink")} in ${cappedRange.label}.${meta}`, true);
+      finish(`Moe had ${moeN} ${plural(moeN, "drink")}, Trish had ${trishN} ${plural(trishN, "drink")}. Total ${total} ${plural(total, "drink")} in ${range.label}.${meta}`, true);
     }
 
     if (el.querySubmit) el.querySubmit.addEventListener("click", handleQuery);
     if (el.queryInput) el.queryInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleQuery(); });
 
-    // PH0-4: renderHistoryChart uses NY dayKey selection (last 21 days)
     function renderHistoryChart() {
       destroyHistoryChart();
 
@@ -1603,10 +1656,10 @@
       const trishColor = cssVar("--trish", "#ff8da1");
       const textColor = cssVar("--text", "#544a4a");
 
-      const todayDayKey = currentDayKey();
-      const startDayKey = dayKeyAddDays(todayDayKey, -(21 - 1));
-      const endDayKeyExclusive = dayKeyAddDays(todayDayKey, 1);
-      const range = { startDayKey, endDayKeyExclusive, label: "last 21 days" };
+      const now = new Date();
+      const endMs = now.getTime();
+      const startMs = startOfDayLocal(endMs) - (21 - 1) * DAY_MS;
+      const range = { startMs, endMs, label: "last 21 days" };
 
       const agg = aggregate(["Moe", "Trish"], range, {});
       const bucketed = buildTimeBucketsFromPerDay(agg.perDay, range);
@@ -1663,9 +1716,10 @@
     }
     window.switchTab = switchTab;
 
-    function startApp() {
-      el.viewLogin.classList.add("hidden");
+    function bootApp() {
+      hideProfileModal();
       el.nav.classList.remove("hidden");
+      applySelectedUserUI();
       switchTab("tracker");
 
       if (el.queryText && el.queryText.innerHTML.trim() === "") {
@@ -1674,14 +1728,38 @@
       }
     }
 
+    function startApp() {
+      el.viewLogin.classList.add("hidden");
+
+      if (!getSelectedUser()) {
+        showProfileModal();
+        return;
+      }
+
+      bootApp();
+    }
+
     function login() {
       if (el.pass.value === "Moetrin") {
-        localStorage.setItem("auth_token", "Moetrin");
+        localStorage.setItem(LS.auth, "Moetrin");
         startApp();
       } else {
         alert("Wrong Password");
         el.pass.value = "";
       }
+    }
+
+    if (el.btnProfileMoe) {
+      el.btnProfileMoe.addEventListener("click", () => {
+        setSelectedUser("Moe");
+        bootApp();
+      });
+    }
+    if (el.btnProfileTrish) {
+      el.btnProfileTrish.addEventListener("click", () => {
+        setSelectedUser("Trish");
+        bootApp();
+      });
     }
 
     el.btnLogin.addEventListener("click", login);
@@ -1725,12 +1803,11 @@
       if (node) node.innerText = String(val);
     }
 
-    // PH0-4: calculate uses NY dayKeys for day/week/month windows (no browser-local boundaries)
     function calculate() {
-      const todayDayKey = currentDayKey();
-      const tomorrowDayKey = dayKeyAddDays(todayDayKey, 1);
-      const start7DayKey = dayKeyAddDays(todayDayKey, -(7 - 1));
-      const start30DayKey = dayKeyAddDays(todayDayKey, -(30 - 1));
+      const now = new Date();
+      const todayStart = startOfDayLocal(now);
+      const start7 = todayStart - (7 - 1) * DAY_MS;
+      const start30 = todayStart - (30 - 1) * DAY_MS;
 
       const stats = {
         moe: { day: 0, week: 0, month: 0, all: 0 },
@@ -1742,10 +1819,9 @@
         if (!u || !stats[u]) continue;
 
         stats[u].all += e.v;
-
-        if (e.dayKey >= start30DayKey && e.dayKey < tomorrowDayKey) stats[u].month += e.v;
-        if (e.dayKey >= start7DayKey && e.dayKey < tomorrowDayKey) stats[u].week += e.v;
-        if (e.dayKey === todayDayKey) stats[u].day += e.v;
+        if (e.ts >= start30) stats[u].month += e.v;
+        if (e.ts >= start7) stats[u].week += e.v;
+        if (e.ts >= todayStart) stats[u].day += e.v;
       }
 
       el.cMoe.innerText = stats.moe.day;
@@ -1759,6 +1835,8 @@
       updateText("stat-month-trish", stats.trish.month);
       updateText("stat-all-moe", stats.moe.all);
       updateText("stat-all-trish", stats.trish.all);
+
+      applySelectedUserUI();
     }
 
     onValue(historyRef, (snapshot) => {
@@ -1768,7 +1846,7 @@
       renderHistoryChart();
     });
 
-    if (localStorage.getItem("auth_token") === "Moetrin") startApp();
+    if (localStorage.getItem(LS.auth) === "Moetrin") startApp();
   </script>
 </body>
 </html>
