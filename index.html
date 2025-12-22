@@ -708,7 +708,7 @@
       <div class="query-container">
         <h3 style="text-align:center; color:var(--text); margin-top:0;">Ask the Log</h3>
         <div class="query-row">
-          <input type="text" id="query-input" placeholder="Ask a question... (ex: Drinks today? Moe 12/1-12/15? Weekends last month?)" />
+          <input type="text" id="query-input" placeholder="Ask a question... (ex: What's my zero streak? How's my plan this week? Drinks today? Moe 12/1-12/15?)" />
           <button id="query-submit" class="btn-main btn-query">Ask</button>
         </div>
 
@@ -1130,6 +1130,64 @@
       return dayStart - diff * DAY_MS;
     }
 
+    // PH3-1: America/New_York dayKey utilities for streak + plan NLP intents
+    const NY_TZ = "America/New_York";
+    const NY_DOW_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+    const nyYMDFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: NY_TZ,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+
+    const nyWeekdayFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: NY_TZ,
+      weekday: "short"
+    });
+
+    function nyDayKeyFromTs(ts) {
+      try {
+        const parts = nyYMDFormatter.formatToParts(new Date(ts));
+        const y = parts.find(p => p.type === "year")?.value;
+        const m = parts.find(p => p.type === "month")?.value;
+        const d = parts.find(p => p.type === "day")?.value;
+        if (!y || !m || !d) return null;
+        return `${y}-${m}-${d}`; // YYYY-MM-DD
+      } catch {
+        return null;
+      }
+    }
+
+    function nyDowFromTs(ts) {
+      try {
+        const w = nyWeekdayFormatter.format(new Date(ts)); // "Mon"
+        return (w && NY_DOW_MAP[w] !== undefined) ? NY_DOW_MAP[w] : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function dayKeyToUtcNoonMs(dayKey) {
+      const m = String(dayKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return NaN;
+      const y = parseInt(m[1], 10);
+      const mo = parseInt(m[2], 10) - 1;
+      const d = parseInt(m[3], 10);
+      return Date.UTC(y, mo, d, 12, 0, 0, 0);
+    }
+
+    function addDaysToDayKey(dayKey, deltaDays) {
+      const noon = dayKeyToUtcNoonMs(dayKey);
+      if (!Number.isFinite(noon) || isNaN(noon)) return dayKey;
+      const dt = new Date(noon);
+      dt.setUTCDate(dt.getUTCDate() + deltaDays);
+      const y = dt.getUTCFullYear();
+      const m = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(dt.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
     function fmtDate(ms) {
       try {
         const d = new Date(ms);
@@ -1142,12 +1200,117 @@
       }
     }
 
+    function fmtDayKey(dayKey) {
+      const ms = dayKeyToUtcNoonMs(dayKey);
+      if (!Number.isFinite(ms) || isNaN(ms)) return String(dayKey || "");
+      // Use UTC-based display date to avoid device timezone skew in labels
+      const d = new Date(ms);
+      const y = d.getUTCFullYear();
+      const m = monthNameFromIndex(d.getUTCMonth()).slice(0, 3);
+      const day = d.getUTCDate();
+      return `${m} ${day}, ${y}`;
+    }
+
     function fmtRange(startMs, endMs, nowMs) {
       const safeEnd = Math.max(startMs, endMs);
       const endForDisplay = (safeEnd === nowMs) ? nowMs : (safeEnd - 1);
       const a = fmtDate(startMs);
       const b = fmtDate(endForDisplay);
       return a === b ? a : `${a} - ${b}`;
+    }
+
+    function currentWeekKey(nowTs = Date.now()) {
+      const todayKey = nyDayKeyFromTs(nowTs);
+      const dow = nyDowFromTs(nowTs);
+      if (!todayKey || dow === null) return null;
+      const diff = (dow + 6) % 7; // Monday as start
+      return addDaysToDayKey(todayKey, -diff); // weekKey = Monday dayKey
+    }
+
+    function buildNYUserDayNet(user) {
+      const net = new Map();
+      let minKey = null;
+
+      for (const e of eventsCache) {
+        if (!e) continue;
+        if (e.user !== user) continue;
+
+        const k = nyDayKeyFromTs(e.ts);
+        if (!k) continue;
+
+        const next = (net.get(k) || 0) + (safeInt(e.v, 0) || 0);
+        net.set(k, next);
+
+        if (!minKey || k < minKey) minKey = k;
+      }
+
+      for (const [k, v] of net.entries()) net.set(k, Math.max(0, v));
+      return { net, minKey };
+    }
+
+    function getZeroStreakDays(user) {
+      const todayKey = nyDayKeyFromTs(Date.now());
+      if (!todayKey) return 0;
+
+      const { net, minKey } = buildNYUserDayNet(user);
+
+      // If user has never logged anything, assume streak starts today (1 day)
+      if (!minKey) return 1;
+
+      let streak = 0;
+      let k = todayKey;
+
+      const MAX_LOOKBACK_DAYS = 3660; // ~10 years, safety cap
+      for (let i = 0; i < MAX_LOOKBACK_DAYS; i++) {
+        const v = Math.max(0, net.get(k) || 0);
+        if (v > 0) break;
+
+        streak += 1;
+
+        if (k === minKey) break;
+        k = addDaysToDayKey(k, -1);
+      }
+
+      return streak;
+    }
+
+    function getWeekProgress(user, which = "this") {
+      const base = currentWeekKey(Date.now());
+      if (!base) return null;
+
+      const weekStartKey = (which === "last") ? addDaysToDayKey(base, -7) : base;
+      const plan = getWeeklyPlan(user);
+
+      const { net } = buildNYUserDayNet(user);
+
+      const dailyKeys = [];
+      const daily = [];
+      let total = 0;
+
+      let k = weekStartKey;
+      for (let i = 0; i < 7; i++) {
+        dailyKeys.push(k);
+        const v = Math.max(0, net.get(k) || 0);
+        daily.push(v);
+        total += v;
+        k = addDaysToDayKey(k, 1);
+      }
+
+      const over = Math.max(0, total - plan);
+      const remaining = Math.max(0, plan - total);
+
+      return {
+        which,
+        weekKey: weekStartKey,
+        weekStartKey,
+        weekEndKey: addDaysToDayKey(weekStartKey, 7),
+        total,
+        plan,
+        over,
+        remaining,
+        dailyKeys,
+        daily
+      };
     }
 
     function parseNumber(qLower) {
@@ -1190,6 +1353,46 @@
     }
 
     function parseIntent(qLower) {
+      // PH3-1: first-class intents for zero streak and plan progress
+      // Streak phrasing coverage: zero streak, dry streak, sober streak, no drinks streak, current streak, my streak,
+      // days without drinks, days since drinking, how long since last drink, streak right now
+      const hasStreakWord = /\bstreak\b/.test(qLower);
+      const hasZeroSignals =
+        /\bzero\s*streak\b/.test(qLower) ||
+        /\bdry\s*streak\b/.test(qLower) ||
+        /\bsober\s*streak\b/.test(qLower) ||
+        /\bno\s*(drink|drinks|drinking)\b.*\bstreak\b/.test(qLower) ||
+        /\b(streak)\b.*\b(zero|dry|sober|no drinks?)\b/.test(qLower) ||
+        /\bdays?\s+since\s+(i\s+)?(last\s+)?(drink|drank|drinking)\b/.test(qLower) ||
+        /\bhow\s+long\s+since\s+(i|we|moe|trish)\b.*\b(drink|drank|drinking)\b/.test(qLower) ||
+        /\bdays?\s+without\s+(a\s+)?(drink|drinks)\b/.test(qLower) ||
+        /\bzero\s+days?\s+in\s+a\s+row\b/.test(qLower) ||
+        /\bcurrent\s+streak\b/.test(qLower) ||
+        /\bmy\s+streak\b/.test(qLower);
+
+      const hasWeeklyStreakSignals = /\bweek(ly)?\b.*\bstreak\b/.test(qLower) || /\bstreak\b.*\bweek(ly)?\b/.test(qLower) || /\bplan\b.*\bstreak\b/.test(qLower);
+
+      if ((hasZeroSignals || (hasStreakWord && !hasWeeklyStreakSignals)) && !/\b(longest|best|record)\b/.test(qLower)) {
+        return { type: "zero_streak", breakdownMode: null, whoSignals: false };
+      }
+
+      // Plan phrasing coverage: game plan, weekly plan, weekly target, weekly limit/max, plan progress, on track, within plan,
+      // how many left/remaining this week, drinks left this week
+      const hasPlanSignals =
+        /\b(game\s*plan)\b/.test(qLower) ||
+        /\b(plan\s*progress)\b/.test(qLower) ||
+        /\bweekly\s+(plan|target|limit|max|cap)\b/.test(qLower) ||
+        /\b(this|current)\s+week\b.*\b(plan|target|limit|max|cap)\b/.test(qLower) ||
+        /\b(plan|target|limit|max|cap)\b.*\b(this|current)\s+week\b/.test(qLower) ||
+        /\b(on\s*track|within\s*plan|under\s*plan|over\s*plan)\b/.test(qLower) ||
+        /\b(how\s+many|how\s+much)\b.*\b(left|remaining)\b.*\b(this|current)\s+week\b/.test(qLower) ||
+        /\b(drinks?)\s+left\b.*\b(this|current)\s+week\b/.test(qLower) ||
+        /\bremaining\b.*\b(plan|target|limit|max|cap)\b/.test(qLower);
+
+      if (hasPlanSignals) {
+        return { type: "plan_progress", breakdownMode: null, whoSignals: false };
+      }
+
       const wantsCommonDrinkType =
         /\bmost common\b.*\b(drink type|type of drink|drink)\b/.test(qLower) ||
         /\bmost frequent\b.*\b(drink type|type of drink|drink)\b/.test(qLower) ||
@@ -1242,6 +1445,11 @@
       }
 
       const bothSignals = /\b(both|all|together|us|we|everyone)\b/.test(qLower) || (hasMoe && hasTrish);
+
+      // For streak + plan intents, default to the selected user unless both is explicitly requested
+      if ((intent?.type === "zero_streak" || intent?.type === "plan_progress") && !bothSignals && !explicitMoe && !explicitTrish) {
+        if (selected) return { users: [selected], mode: "single" };
+      }
 
       if (bothSignals) return { users: ["Moe", "Trish"], mode: "both" };
       if (hasMoe) return { users: ["Moe"], mode: "single" };
@@ -1819,6 +2027,53 @@
       return { mode, labels, series, spanDays };
     }
 
+    function renderMiniDailyBarChart({ labels, datasets }) {
+      destroyQueryChart();
+
+      if (!window.Chart || !el.queryChartCanvas || !el.queryChartWrap) return;
+
+      const textColor = cssVar("--text", "#544a4a");
+
+      const showLegend = (datasets || []).length > 1;
+
+      const commonPlugins = {
+        legend: {
+          display: showLegend,
+          position: "bottom",
+          labels: {
+            color: textColor,
+            boxWidth: 14,
+            boxHeight: 14,
+            padding: 14,
+            font: { weight: "800" }
+          }
+        },
+        tooltip: {
+          enabled: true,
+          titleColor: "#fff",
+          bodyColor: "#fff",
+          footerColor: "#fff",
+          callbacks: { labelTextColor: () => "#fff" }
+        }
+      };
+
+      el.queryChartWrap.classList.remove("hidden");
+      queryChart = new window.Chart(el.queryChartCanvas, {
+        type: "bar",
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: commonPlugins,
+          scales: {
+            x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
+            y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
+          },
+          animation: { duration: 450 }
+        }
+      });
+    }
+
     function renderChart(intent, userInfo, agg, range) {
       destroyQueryChart();
 
@@ -1959,6 +2214,9 @@
 
     const EXAMPLES_HTML = `
       Try questions like:<small>
+      What's my zero streak?<br>
+      How's my plan this week?<br>
+      Show my plan chart<br>
       How many drinks did I have today?<br>
       How many drinks did Moe have today?<br>
       How many drinks did Trish have in December 2025?<br>
@@ -1986,16 +2244,116 @@
       const qLower = normalizeQuery(raw);
       const intent = parseIntent(qLower);
       const userInfo = parseUsers(qLower, intent);
-      const dayFilter = parseDayFilter(qLower);
 
-      if (/\bstreak\b/.test(qLower)) {
-        const who = (userInfo.users.length === 1) ? userInfo.users[0] : "Moe and Trish";
-        setQueryResult(
-          `${who} streaks are not available in this build yet.<small>Tip: ask for drinks today, last week, a date range, or "most common drink type last week".</small>`,
-          true
-        );
+      const moeColor = cssVar("--moe", "#6ab7ff");
+      const trishColor = cssVar("--trish", "#ff8da1");
+
+      const chartWanted =
+        /\b(chart|graph|plot|visual|bars?|bar chart|trend)\b/.test(qLower) ||
+        (/\bshow\b/.test(qLower) && /\b(week|7|seven)\b/.test(qLower));
+
+      // PH3-1: zero streak intent - no time range needed
+      if (intent.type === "zero_streak") {
+        const users = userInfo.users;
+
+        const lines = users.map(u => {
+          const n = getZeroStreakDays(u);
+          return `${u}: <b>${n}</b> ${plural(n, "day")}`;
+        });
+
+        const help = chartWanted ? "" : `<small>Tip: add "chart" if you want a quick 7 day bar view.</small>`;
+        const meta = `<small>Day boundary: ${NY_TZ}</small>`;
+
+        setQueryResult(`Zero streak right now:<br>${lines.join("<br>")}${meta}${help}`, true);
+
+        if (chartWanted) {
+          const todayKey = nyDayKeyFromTs(Date.now());
+          if (todayKey) {
+            const keys = [];
+            let k = addDaysToDayKey(todayKey, -6);
+            for (let i = 0; i < 7; i++) {
+              keys.push(k);
+              k = addDaysToDayKey(k, 1);
+            }
+
+            const labels = keys.map(dk => {
+              // Label as "Mon 12/22" style
+              const dow = nyDowFromTs(dayKeyToUtcNoonMs(dk));
+              const d = new Date(dayKeyToUtcNoonMs(dk));
+              const mon = monthNameFromIndex(d.getUTCMonth()).slice(0, 3);
+              const day = d.getUTCDate();
+              const dd = (dow === null) ? "" : DOW_SHORT[dow];
+              return dd ? `${dd} ${mon} ${day}` : `${mon} ${day}`;
+            });
+
+            const datasets = users.map(u => {
+              const { net } = buildNYUserDayNet(u);
+              const data = keys.map(dk => Math.max(0, net.get(dk) || 0));
+              const color = (u === "Moe") ? moeColor : trishColor;
+              return { label: u, data, backgroundColor: color, borderRadius: 12, borderSkipped: false };
+            });
+
+            renderMiniDailyBarChart({ labels, datasets });
+          }
+        }
+
         return;
       }
+
+      // PH3-1: plan progress intent - no time range needed
+      if (intent.type === "plan_progress") {
+        const users = userInfo.users;
+
+        const wantsLastWeek = /\b(calendar last week|last calendar week|previous week|last week)\b/.test(qLower) && !/\b(this week|current week)\b/.test(qLower);
+        const which = wantsLastWeek ? "last" : "this";
+
+        const rows = [];
+        let chartDailyKeys = null;
+
+        for (const u of users) {
+          const prog = getWeekProgress(u, which);
+          if (!prog) {
+            rows.push(`${u}: (could not compute week key)`);
+            continue;
+          }
+
+          chartDailyKeys = prog.dailyKeys;
+
+          if (prog.plan === 0) {
+            rows.push(`${u}: <b>${prog.total}</b> this week (target is 0)`);
+          } else if (prog.over > 0) {
+            rows.push(`${u}: <b>${prog.total}</b> of ${prog.plan} this week (over by ${prog.over})`);
+          } else {
+            rows.push(`${u}: <b>${prog.total}</b> of ${prog.plan} this week (${prog.remaining} left)`);
+          }
+        }
+
+        const weekKey = currentWeekKey(Date.now());
+        const weekStart = (which === "last" && weekKey) ? addDaysToDayKey(weekKey, -7) : weekKey;
+        const weekLabel = weekStart ? `${fmtDayKey(weekStart)} - ${fmtDayKey(addDaysToDayKey(weekStart, 6))}` : "";
+
+        const help = chartWanted ? "" : `<small>Tip: add "chart" to see your week by day.</small>`;
+        const meta = `<small>Week boundary: Monday-Sunday in ${NY_TZ}${weekLabel ? ` | Week: ${weekLabel}` : ""}</small>`;
+
+        setQueryResult(`This week's game plan progress:<br>${rows.join("<br>")}${meta}${help}`, true);
+
+        if (chartWanted && chartDailyKeys && chartDailyKeys.length === 7) {
+          const labels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+          const datasets = users.map(u => {
+            const prog = getWeekProgress(u, which);
+            const data = (prog?.daily || []).map(x => Math.max(0, x));
+            const color = (u === "Moe") ? moeColor : trishColor;
+            return { label: u, data, backgroundColor: color, borderRadius: 12, borderSkipped: false };
+          });
+
+          renderMiniDailyBarChart({ labels, datasets });
+        }
+
+        return;
+      }
+
+      const dayFilter = parseDayFilter(qLower);
 
       const preferCalendarLastWeek = !!(dayFilter && /\blast week\b/.test(qLower));
       const range = resolveTimeRange(raw, now, { preferCalendarLastWeek });
