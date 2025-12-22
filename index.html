@@ -533,8 +533,8 @@
         <div class="user-name">Moe</div>
         <div class="count" id="c-moe">...</div>
         <div class="controls">
-          <button class="btn-round" onclick="addDrink('Moe', -1)">−</button>
-          <button class="btn-round plus" onclick="addDrink('Moe', 1)">🍺</button>
+          <button class="btn-round" onclick="logDrinkAction('Moe','beer',-1)">−</button>
+          <button class="btn-round plus" onclick="logDrinkAction('Moe','beer',1)">🍺</button>
         </div>
       </div>
 
@@ -543,8 +543,8 @@
         <div class="user-name">Trish</div>
         <div class="count" id="c-trish">...</div>
         <div class="controls">
-          <button class="btn-round" onclick="addDrink('Trish', -1)">−</button>
-          <button class="btn-round plus" onclick="addDrink('Trish', 1)">🍹</button>
+          <button class="btn-round" onclick="logDrinkAction('Trish','cocktail',-1)">−</button>
+          <button class="btn-round plus" onclick="logDrinkAction('Trish','cocktail',1)">🍹</button>
         </div>
       </div>
     </div>
@@ -633,11 +633,11 @@
       </div>
 
       <div class="settings-section">
-        <p class="settings-label">Weekly plan</p>
-        <p class="settings-help">Stored per profile. This powers the token row later.</p>
+        <p class="settings-label">Weekly drinks target</p>
+        <p class="settings-help">Set a weekly max we try to stay under. Saved per profile in Firebase so it persists across devices.</p>
         <div class="plan-row">
           <input id="weekly-plan-input" type="number" min="0" max="99" step="1" inputmode="numeric" />
-          <div id="plan-hint" class="plan-chip">Applies to: Moe</div>
+          <div id="plan-hint" class="plan-chip">Weekly target for: Moe</div>
         </div>
       </div>
 
@@ -650,7 +650,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     // --- Firebase ---
     const firebaseConfig = {
@@ -666,12 +666,15 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
+
     const historyRef = ref(db, "history");
+    const weeklyPlansRef = ref(db, "weeklyPlans"); // weeklyPlans/{Moe|Trish} = number
 
     // --- Local storage keys ---
     const LS = {
       auth: "auth_token",
       selectedUser: "selected_user",
+      // Kept as a local fallback cache (Firebase is source of truth now)
       weeklyPlanMoe: "weekly_plan_Moe",
       weeklyPlanTrish: "weekly_plan_Trish"
     };
@@ -757,6 +760,19 @@
       eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20
     };
 
+    const VALID_DRINK_TYPES = new Set(["wine","beer","cocktail","other"]);
+
+    function normalizeDrinkType(t) {
+      const s = String(t || "").trim().toLowerCase();
+      return VALID_DRINK_TYPES.has(s) ? s : "other";
+    }
+
+    function safeInt(n, fallback) {
+      const x = (typeof n === "number") ? n : parseInt(String(n ?? ""), 10);
+      if (!Number.isFinite(x) || isNaN(x)) return fallback;
+      return x;
+    }
+
     function getSelectedUser() {
       const u = localStorage.getItem(LS.selectedUser);
       return (u === "Moe" || u === "Trish") ? u : null;
@@ -773,20 +789,43 @@
       return user === "Trish" ? LS.weeklyPlanTrish : LS.weeklyPlanMoe;
     }
 
+    // Firebase source of truth, localStorage fallback cache
+    const weeklyPlans = { Moe: DEFAULT_WEEKLY_PLAN, Trish: DEFAULT_WEEKLY_PLAN };
+    let ensuredWeeklyPlansOnce = false;
+
+    function seedWeeklyPlansFromLocalStorage() {
+      for (const u of ["Moe","Trish"]) {
+        const raw = localStorage.getItem(weeklyPlanKeyFor(u));
+        const n = safeInt(raw, NaN);
+        if (Number.isFinite(n) && !isNaN(n) && n >= 0) weeklyPlans[u] = Math.min(99, Math.trunc(n));
+      }
+    }
+    seedWeeklyPlansFromLocalStorage();
+
     function getWeeklyPlan(user) {
-      const key = weeklyPlanKeyFor(user);
-      const raw = localStorage.getItem(key);
-      const n = raw === null ? NaN : parseInt(raw, 10);
+      const n = weeklyPlans[user];
       if (!Number.isFinite(n) || isNaN(n) || n < 0) return DEFAULT_WEEKLY_PLAN;
-      return Math.min(99, n);
+      return Math.min(99, Math.trunc(n));
     }
 
-    function setWeeklyPlan(user, planInt) {
+    async function setWeeklyPlan(user, planInt) {
       if (user !== "Moe" && user !== "Trish") return;
-      const n = Number.isFinite(planInt) ? Math.trunc(planInt) : parseInt(String(planInt || ""), 10);
+      const n = safeInt(planInt, NaN);
       if (!Number.isFinite(n) || isNaN(n)) return;
-      const safe = Math.max(0, Math.min(99, n));
+
+      const safe = Math.max(0, Math.min(99, Math.trunc(n)));
+      weeklyPlans[user] = safe;
+
+      // Local cache
       localStorage.setItem(weeklyPlanKeyFor(user), String(safe));
+
+      // Firebase source of truth
+      try {
+        await set(ref(db, `weeklyPlans/${user}`), safe);
+      } catch (err) {
+        // If write fails (permissions / offline), local cache still keeps UX stable
+        console.warn("Failed to save weekly plan to Firebase:", err);
+      }
     }
 
     function applySelectedUserUI() {
@@ -837,7 +876,7 @@
       if (el.btnSwitchTrish) el.btnSwitchTrish.classList.toggle("active", u === "Trish");
 
       if (el.weeklyPlanInput) el.weeklyPlanInput.value = String(getWeeklyPlan(u));
-      if (el.planHint) el.planHint.innerText = `Applies to: ${u}`;
+      if (el.planHint) el.planHint.innerText = `Weekly target for: ${u}`;
     }
 
     function cssVar(name, fallback = "") {
@@ -914,18 +953,33 @@
       return numberWords[t] ?? null;
     }
 
+    // PH2-1: rebuildEventsCache supports drinkType + delta events, with backwards compatible defaults
     function rebuildEventsCache() {
       const out = [];
       for (const entry of Object.values(allHistory || {})) {
         if (!entry) continue;
-        const u = entry.user;
-        const ts = entry.timestamp;
-        if (typeof u !== "string" || typeof ts !== "number") continue;
 
-        const v = (typeof entry.value === "number" && Number.isFinite(entry.value)) ? entry.value : 1;
+        const u = entry.user;
+        const ts = safeInt(entry.timestamp, NaN);
+        if (typeof u !== "string" || !Number.isFinite(ts) || isNaN(ts)) continue;
+
+        let v = 1;
+        const rawV = entry.value;
+        if (typeof rawV === "number" && Number.isFinite(rawV)) v = rawV;
+        else if (typeof rawV === "string" && rawV.trim() !== "" && Number.isFinite(Number(rawV))) v = Number(rawV);
+        else v = 1;
+
+        // Normalize delta to a sane integer (supports legacy +1 and new -1 events)
+        v = Math.trunc(v);
+        if (v === 0) continue;
+        // If anything other than +-1 sneaks in, collapse to sign
+        if (v !== 1 && v !== -1) v = v < 0 ? -1 : 1;
+
+        const drinkType = normalizeDrinkType(entry.drinkType || "other");
+
         const dayStart = startOfDayLocal(ts);
         const dow = new Date(dayStart).getDay();
-        out.push({ user: u, ts, v, dayStart, dow });
+        out.push({ user: u, ts, v, dayStart, dow, drinkType });
       }
       out.sort((a, b) => a.ts - b.ts);
       eventsCache = out;
@@ -2064,7 +2118,7 @@
     if (el.btnSwitchMoe) el.btnSwitchMoe.addEventListener("click", () => setSelectedUser("Moe"));
     if (el.btnSwitchTrish) el.btnSwitchTrish.addEventListener("click", () => setSelectedUser("Trish"));
 
-    if (el.btnSettingsSave) el.btnSettingsSave.addEventListener("click", () => {
+    if (el.btnSettingsSave) el.btnSettingsSave.addEventListener("click", async () => {
       const u = getSelectedUser();
       if (!u) return;
 
@@ -2076,7 +2130,7 @@
         return;
       }
 
-      setWeeklyPlan(u, n);
+      await setWeeklyPlan(u, n);
       syncSettingsUIFromState();
       hideSettingsModal();
     });
@@ -2102,38 +2156,75 @@
     el.btnLogin.addEventListener("click", login);
     el.pass.addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
 
-    function addDrink(user, amount) {
+    // PH2-1: logDrink({ user, drinkType, delta }) with delta events (no deletes)
+    async function logDrink({ user, drinkType, delta }) {
+      if (user !== "Moe" && user !== "Trish") return;
+      const dt = normalizeDrinkType(drinkType);
+      const v = Math.trunc(safeInt(delta, 0));
+      if (v !== 1 && v !== -1) return;
+
+      await push(historyRef, {
+        user,
+        timestamp: Date.now(),
+        value: v,
+        drinkType: dt
+      });
+    }
+
+    function getTodayNetFor(user, drinkType) {
+      const todayStart = startOfDayLocal(Date.now());
+      const dt = normalizeDrinkType(drinkType);
+      let sum = 0;
+      for (const e of eventsCache) {
+        if (!e) continue;
+        if (e.user !== user) continue;
+        if (e.dayStart !== todayStart) continue;
+        if ((e.drinkType || "other") !== dt) continue;
+        sum += e.v;
+      }
+      return sum;
+    }
+
+    async function logDrinkAction(user, drinkType, delta) {
       const card = user === "Moe" ? el.cardMoe : el.cardTrish;
+      const v = Math.trunc(safeInt(delta, 0));
+      const dt = normalizeDrinkType(drinkType);
 
-      if (amount > 0) {
-        push(historyRef, { user, timestamp: Date.now(), value: 1 });
+      if (v === -1) {
+        // Safe undo for today: do not allow net negative for today + type
+        const net = getTodayNetFor(user, dt);
+        if (net <= 0) {
+          if (card) {
+            card.style.transform = "translateX(5px)";
+            setTimeout(() => (card.style.transform = "translateX(-5px)"), 50);
+            setTimeout(() => (card.style.transform = "none"), 100);
+          }
+          return;
+        }
 
-        const pop = document.createElement("div");
-        pop.className = "kanpai-pop";
-        pop.innerText = "🍻 Kanpai!";
-        card.appendChild(pop);
-        setTimeout(() => pop.remove(), 800);
+        await logDrink({ user, drinkType: dt, delta: -1 });
+
+        if (card) {
+          card.style.transform = "translateX(5px)";
+          setTimeout(() => (card.style.transform = "translateX(-5px)"), 50);
+          setTimeout(() => (card.style.transform = "none"), 100);
+        }
         return;
       }
 
-      let lastId = null;
-      let lastTime = 0;
+      if (v === 1) {
+        await logDrink({ user, drinkType: dt, delta: 1 });
 
-      for (const [id, data] of Object.entries(allHistory || {})) {
-        if (data && data.user === user && typeof data.timestamp === "number" && data.timestamp > lastTime) {
-          lastTime = data.timestamp;
-          lastId = id;
+        if (card) {
+          const pop = document.createElement("div");
+          pop.className = "kanpai-pop";
+          pop.innerText = "🍻 Kanpai!";
+          card.appendChild(pop);
+          setTimeout(() => pop.remove(), 800);
         }
       }
-
-      if (lastId) {
-        remove(ref(db, "history/" + lastId));
-        card.style.transform = "translateX(5px)";
-        setTimeout(() => (card.style.transform = "translateX(-5px)"), 50);
-        setTimeout(() => (card.style.transform = "none"), 100);
-      }
     }
-    window.addDrink = addDrink;
+    window.logDrinkAction = logDrinkAction;
 
     function updateText(id, val) {
       const node = document.getElementById(id);
@@ -2181,6 +2272,31 @@
       rebuildEventsCache();
       calculate();
       renderHistoryChart();
+    });
+
+    // Weekly plan persistence in Firebase (source of truth)
+    onValue(weeklyPlansRef, async (snapshot) => {
+      const data = snapshot.val() || {};
+      for (const u of ["Moe","Trish"]) {
+        const n = safeInt(data?.[u], NaN);
+        if (Number.isFinite(n) && !isNaN(n) && n >= 0) {
+          weeklyPlans[u] = Math.min(99, Math.trunc(n));
+          localStorage.setItem(weeklyPlanKeyFor(u), String(weeklyPlans[u]));
+        } else if (!ensuredWeeklyPlansOnce) {
+          // If Firebase has no value yet, seed it from local cache or defaults
+          try {
+            await set(ref(db, `weeklyPlans/${u}`), getWeeklyPlan(u));
+          } catch (err) {
+            console.warn("Failed to seed weekly plan to Firebase:", err);
+          }
+        }
+      }
+      ensuredWeeklyPlansOnce = true;
+
+      // If settings is open, keep UI in sync
+      if (el.settingsModal && !el.settingsModal.classList.contains("hidden")) {
+        syncSettingsUIFromState();
+      }
     });
 
     if (localStorage.getItem(LS.auth) === "Moetrin") startApp();
