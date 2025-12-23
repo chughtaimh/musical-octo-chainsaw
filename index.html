@@ -1,3 +1,4 @@
+html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -687,7 +688,8 @@
 
     <div id="view-analytics" class="hidden">
       <div class="analytics-container">
-        <h3 style="text-align:center; color:var(--text); margin-top:0;">History Log</h3>
+        <!-- Changed from "History Log" to "My trend" per Ticket PH3-2 -->
+        <h3 style="text-align:center; color:var(--text); margin-top:0;">My trend</h3>
         <div id="history-chart-wrap" class="hidden">
           <canvas id="history-chart"></canvas>
           <div class="chart-footnote">Last 21 days</div>
@@ -990,6 +992,8 @@
       localStorage.setItem(LS.selectedUser, u);
       applySelectedUserUI();
       syncSettingsUIFromState();
+      // Added PH3-2: Trigger chart update immediately when profile switches
+      renderHistoryChart();
     }
 
     function weeklyPlanKeyFor(user) {
@@ -2624,8 +2628,12 @@
 
       if (!window.Chart || !el.historyChartCanvas || !el.historyChartWrap) return;
 
-      const moeColor = cssVar("--moe", "#6ab7ff");
-      const trishColor = cssVar("--trish", "#ff8da1");
+      const u = getSelectedUser();
+      if (!u) {
+        if (el.historyChartWrap) el.historyChartWrap.classList.add("hidden");
+        return;
+      }
+
       const textColor = cssVar("--text", "#544a4a");
 
       const now = new Date();
@@ -2633,19 +2641,27 @@
       const startMs = startOfDayLocal(endMs) - (21 - 1) * DAY_MS;
       const range = { startMs, endMs, label: "last 21 days" };
 
-      const agg = aggregate(["Moe", "Trish"], range, {});
+      // PH3-2: Aggregate only the active user
+      const agg = aggregate([u], range, {});
       const bucketed = buildTimeBucketsFromPerDay(agg.perDay, range);
 
-      const moeTotal = agg?.sums?.Moe || 0;
-      const trishTotal = agg?.sums?.Trish || 0;
-      if ((moeTotal + trishTotal) === 0 || !bucketed.labels.length) {
+      const total = agg?.sums?.[u] || 0;
+      if (total === 0 || !bucketed.labels.length) {
         if (el.historyChartWrap) el.historyChartWrap.classList.add("hidden");
         return;
       }
 
+      // Single dataset with user's color
+      const color = (u === "Moe") ? cssVar("--moe", "#6ab7ff") : cssVar("--trish", "#ff8da1");
+
       const datasets = [
-        { label: "Moe", data: bucketed.series.map(s => s.Moe || 0), backgroundColor: moeColor, borderRadius: 12, borderSkipped: false },
-        { label: "Trish", data: bucketed.series.map(s => s.Trish || 0), backgroundColor: trishColor, borderRadius: 12, borderSkipped: false }
+        { 
+          label: u, 
+          data: bucketed.series.map(s => s[u] || 0), 
+          backgroundColor: color, 
+          borderRadius: 12, 
+          borderSkipped: false 
+        }
       ];
 
       el.historyChartWrap.classList.remove("hidden");
@@ -2657,9 +2673,7 @@
           maintainAspectRatio: false,
           plugins: {
             legend: {
-              display: true,
-              position: "bottom",
-              labels: { color: textColor, boxWidth: 14, boxHeight: 14, padding: 14, font: { weight: "800" } }
+              display: false, // Hidden for single series as per "No comparison" intent
             },
             tooltip: {
               enabled: true,
