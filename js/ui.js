@@ -1,7 +1,7 @@
 import { cssVar, normalizeDrinkType, drinkTypeEmoji, drinkTypeLabel, monthNameFromIndex, plural, startOfDayLocal, startOfWeekMonday, labelForDay, labelForWeek, labelForMonth, calcRangeSpanDays } from "./utils.js";
 import { state } from "./state.js";
 import { aggregate, buildTimeBucketsFromPerDay, getWeekProgress } from "./logic.js";
-import { LS, NY_TZ, DOW_SHORT } from "./constants.js";
+import { LS, NY_TZ, DOW_SHORT, DAY_MS } from "./constants.js";
 
 // Better to move getWeeklyPlan to logic or state helper.
 // Actually getWeeklyPlan reads from state.weeklyPlans. I can just export a helper from state or logic.
