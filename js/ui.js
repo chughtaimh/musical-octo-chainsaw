@@ -8,7 +8,7 @@ import { LS, NY_TZ, DOW_SHORT } from "./constants.js";
 
 // Let's redefine getWeeklyPlan here or import it if I move it.
 // I'll move getWeeklyPlan to logic.js or just inline it reading from state.
-function getWeeklyPlan(user) {
+function getPlanFromState(user) {
     const n = state.weeklyPlans[user];
     if (!Number.isFinite(n) || isNaN(n) || n < 0) return 14;
     return Math.min(99, Math.trunc(n));
@@ -116,7 +116,7 @@ export function syncSettingsUIFromState() {
     if (el.btnSwitchMoe) el.btnSwitchMoe.classList.toggle("active", u === "Moe");
     if (el.btnSwitchTrish) el.btnSwitchTrish.classList.toggle("active", u === "Trish");
 
-    if (el.weeklyPlanInput) el.weeklyPlanInput.value = String(getWeeklyPlan(u));
+    if (el.weeklyPlanInput) el.weeklyPlanInput.value = String(getPlanFromState(u));
     if (el.planHint) el.planHint.innerText = `Weekly target for: ${u}`;
 }
 
