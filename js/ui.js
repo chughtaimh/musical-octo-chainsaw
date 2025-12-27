@@ -47,7 +47,6 @@ export function initDOM() {
     el.header = document.getElementById("app-header");
     el.pass = document.getElementById("pass-input");
     el.queryChartCanvas = document.getElementById("query-chart");
-    el.queryChartCanvas = document.getElementById("query-chart");
     el.historyChartCanvas = document.getElementById("history-chart");
     el.nav = el.mainNav; // Alias for app.js usage
 }

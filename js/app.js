@@ -425,6 +425,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (el.queryInput) el.queryInput.addEventListener("keydown", (e) => { if (e.key === "Enter") handleQuery(); });
 
     // Wiring Modals
+    if (el.btnDrinktypeClose) el.btnDrinktypeClose.addEventListener("click", closeDrinkTypeModal);
     if (el.drinktypeChoices) {
         el.drinktypeChoices.addEventListener("click", async (e) => {
             const btn = e.target.closest("[data-type]");
@@ -441,6 +442,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     // Adjust Today Logic
+    if (el.btnAdjusttodayClose) el.btnAdjusttodayClose.addEventListener("click", closeAdjustTodayModal);
     if (el.adjusttodayRows) {
         el.adjusttodayRows.addEventListener("click", async (e) => {
             const btn = e.target.closest("button[data-action]");
