@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Tests</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .pass {
+            color: green;
+        }
+
+        .fail {
+            color: red;
+            font-weight: bold;
+        }
+
+        .summary {
+            font-size: 1.2em;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Unit Tests</h1>
+    <div id="results">Running...</div>
+
+    <script type="module">
+        import { normalizeDrinkType, safeInt } from "./js/utils.js";
+        import { parseIntent, aggregate, rebuildEventsCache } from "./js/logic.js";
+        import { state } from "./js/state.js";
+
+        const results = document.getElementById("results");
+        let passed = 0;
+        let failed = 0;
+        let logs = [];
+
+        function assert(cond, msg) {
+            if (cond) {
+                passed++;
+                logs.push(`<div class="pass">✔ ${msg}</div>`);
+            } else {
+                failed++;
+                logs.push(`<div class="fail">✘ ${msg}</div>`);
+                console.error("Assertion failed:", msg);
+            }
+        }
+
+        function assertEqual(actual, expected, msg) {
+            assert(actual === expected, `${msg} (Expected: ${expected}, Got: ${actual})`);
+        }
+
+        async function runTests() {
+            logs = [];
+
+            // Test 1: normalizeDrinkType
+            assertEqual(normalizeDrinkType("Beer"), "beer", "normalizeDrinkType handles Case");
+            assertEqual(normalizeDrinkType("   Wine "), "wine", "normalizeDrinkType handles whitespace");
+            assertEqual(normalizeDrinkType("Water"), "other", "normalizeDrinkType handles unknown");
+
+            // Test 2: safeInt
+            assertEqual(safeInt("123"), 123, "safeInt parses numeric string");
+            assertEqual(safeInt("abc", 0), 0, "safeInt returns fallback on NaN");
+
+            // Test 3: parseIntent
+            let i = parseIntent("zero streak");
+            assertEqual(i.type, "zero_streak", "Intent: zero streak");
+
+            i = parseIntent("how many drinks today");
+            // "how many" -> days_count usually? or is it implicit?
+            // Logic from code: "drinks today" -> usually just count if no specific keywords match better?
+            // Wait, "how many ... today" might hit "count" default if nothing else matches.
+            // logic.js: let type = "count"; is default.
+            assertEqual(i.type, "count", "Intent: count (default)");
+
+            i = parseIntent("most common drink type");
+            assertEqual(i.type, "common_type", "Intent: common type");
+
+            // Test 4: rebuildEventsCache
+            const historyMock = {
+                key1: { user: "Moe", timestamp: 1000, value: 1, drinkType: "beer" },
+                key2: { user: "Trish", timestamp: 2000, value: 1, drinkType: "wine" },
+                key3: { user: "Moe", timestamp: 1500, value: -1, drinkType: "beer" } // Undo
+            };
+            const cache = rebuildEventsCache(historyMock);
+            assertEqual(cache.length, 3, "Cache has correct length");
+            assertEqual(cache[0].ts, 1000, "Cache sorted by timestamp (1)");
+            assertEqual(cache[1].ts, 1500, "Cache sorted by timestamp (2)");
+            assertEqual(cache[2].ts, 2000, "Cache sorted by timestamp (3)");
+
+            // Test 5: aggregate
+            // cache has: Moe(+1), Moe(-1), Trish(+1)
+            // Range covering all
+            const range = { startMs: 0, endMs: 3000 };
+            const agg = aggregate(["Moe", "Trish"], range, {}, cache);
+
+            // Moe: +1 -1 = 0
+            // Trish: +1 = 1
+            assertEqual(agg.sums.Moe, 0, "Aggregate sum correctness (Moe)");
+            assertEqual(agg.sums.Trish, 1, "Aggregate sum correctness (Trish)");
+            assertEqual(agg.total, 1, "Aggregate total correctness");
+
+            // Finish
+            const color = failed === 0 ? "green" : "red";
+            results.innerHTML = logs.join("") + `<div class="summary" style="color:${color}">Passed: ${passed}, Failed: ${failed}</div>`;
+
+            if (failed === 0) {
+                document.body.setAttribute("data-status", "success");
+            } else {
+                document.body.setAttribute("data-status", "failure");
+            }
+        }
+
+        runTests().catch(e => {
+            results.innerHTML += `<div class="fail">Test runner crashed: ${e.message}</div>`;
+        });
+    </script>
+</body>
+
+</html>

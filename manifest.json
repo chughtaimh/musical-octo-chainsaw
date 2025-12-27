@@ -1,0 +1,20 @@
+{
+    "name": "M&T Drinks Tracker",
+    "short_name": "Drinks",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#fdfbf7",
+    "theme_color": "#fdfbf7",
+    "icons": [
+        {
+            "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23fdfbf7' rx='22'/%3E%3Crect x='15' y='35' width='25' height='35' rx='4' fill='%236ab7ff' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M40 40 C 50 40, 50 60, 40 60' fill='none' stroke='%23544a4a' stroke-width='3'/%3E%3Crect x='15' y='35' width='25' height='10' rx='2' fill='white' opacity='0.5'/%3E%3Cpath d='M60 35 Q 60 60 75 60 Q 90 60 90 35 Z' fill='%23ff8da1' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='75' y1='60' x2='75' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='65' y1='80' x2='85' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M50 20 L52 25 L57 27 L52 29 L50 34 L48 29 L43 27 L48 25 Z' fill='%23ffd700'/%3E%3C/svg%3E",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23fdfbf7' rx='22'/%3E%3Crect x='15' y='35' width='25' height='35' rx='4' fill='%236ab7ff' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M40 40 C 50 40, 50 60, 40 60' fill='none' stroke='%23544a4a' stroke-width='3'/%3E%3Crect x='15' y='35' width='25' height='10' rx='2' fill='white' opacity='0.5'/%3E%3Cpath d='M60 35 Q 60 60 75 60 Q 90 60 90 35 Z' fill='%23ff8da1' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='75' y1='60' x2='75' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='65' y1='80' x2='85' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M50 20 L52 25 L57 27 L52 29 L50 34 L48 29 L43 27 L48 25 Z' fill='%23ffd700'/%3E%3C/svg%3E",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+        }
+    ]
+}
