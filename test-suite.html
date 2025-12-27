@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Reliability Test Suite</title>
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            padding: 20px;
+            background: #fdfbf7;
+            color: #544a4a;
+        }
+
+        h1 {
+            color: #ff8da1;
+        }
+
+        h2 {
+            color: #6ab7ff;
+            margin-top: 30px;
+            border-bottom: 2px dashed #eee;
+            padding-bottom: 10px;
+        }
+
+        .pass {
+            color: #22c55e;
+        }
+
+        .fail {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .summary {
+            font-size: 1.2em;
+            margin-top: 20px;
+            font-weight: bold;
+            padding: 15px;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .test-group {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin: 10px 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🧪 Reliability Test Suite</h1>
+    <p>Testing error handling, validation, and Firebase reliability modules.</p>
+    <div id="results">Running tests...</div>
+
+    <script type="module">
+        import { showToast, safeGetItem, safeSetItem, safeRemoveItem, safeAsync, debounce, throttle } from "./js/error-handler.js";
+        import { validateDOM, sanitizeHtml, stripHtml, normalizeWhitespace, safeParseInt, safeParseFloat, validateUser, isValidUser, validateDrinkType, isValidDrinkType, isValidTimestamp, isValidDayKey, validateQuery } from "./js/validation.js";
+        import { normalizeDrinkType, safeInt } from "./js/utils.js";
+        import { parseIntent, aggregate, rebuildEventsCache } from "./js/logic.js";
+
+        const results = document.getElementById("results");
+        let passed = 0, failed = 0, logs = [];
+
+        function assert(cond, msg) {
+            if (cond) { passed++; logs.push(`<div class="pass">✔ ${msg}</div>`); }
+            else { failed++; logs.push(`<div class="fail">✘ ${msg}</div>`); console.error("Failed:", msg); }
+        }
+
+        function assertEqual(actual, expected, msg) {
+            const pass = actual === expected;
+            if (!pass) console.error(`Expected: ${expected}, Got: ${actual}`);
+            assert(pass, `${msg} (Expected: ${expected}, Got: ${actual})`);
+        }
+
+        async function runTests() {
+            logs = [];
+
+            // ===== VALIDATION MODULE =====
+            logs.push('<h2>✅ Validation Module</h2><div class="test-group">');
+
+            // sanitizeHtml - test escapes all dangerous chars including quotes and slashes
+            const scriptTest = sanitizeHtml("<scr" + "ipt>alert('xss')<\/scr" + "ipt>");
+            assert(scriptTest.includes("&lt;"), "sanitizeHtml escapes < in script tags");
+            assert(scriptTest.includes("&gt;"), "sanitizeHtml escapes > in script tags");
+            assert(!scriptTest.includes("<scr"), "sanitizeHtml removes actual script tags");
+
+            assertEqual(sanitizeHtml("Normal text"), "Normal text", "sanitizeHtml preserves normal text");
+            assertEqual(sanitizeHtml(null), "", "sanitizeHtml handles null");
+            assertEqual(sanitizeHtml(undefined), "", "sanitizeHtml handles undefined");
+
+            assertEqual(stripHtml("<p>Hello <b>World</b></p>"), "Hello World", "stripHtml removes all HTML tags");
+            assertEqual(stripHtml("No tags here"), "No tags here", "stripHtml preserves text without tags");
+
+            assertEqual(normalizeWhitespace("  hello   world  "), "hello world", "normalizeWhitespace trims and collapses");
+            assertEqual(normalizeWhitespace("line1\n\nline2"), "line1 line2", "normalizeWhitespace handles newlines");
+
+            assertEqual(safeParseInt("42"), 42, "safeParseInt parses valid int");
+            assertEqual(safeParseInt("abc", 0), 0, "safeParseInt returns fallback for invalid");
+            assertEqual(safeParseInt(null, 5), 5, "safeParseInt handles null");
+            assertEqual(safeParseInt("100", 0, { max: 50 }), 50, "safeParseInt respects max bound");
+            assertEqual(safeParseInt("-10", 0, { min: 0 }), 0, "safeParseInt respects min bound");
+
+            assertEqual(safeParseFloat("3.14"), 3.14, "safeParseFloat parses valid float");
+            assertEqual(safeParseFloat("abc", 0), 0, "safeParseFloat returns fallback");
+
+            let userResult = validateUser("Moe");
+            assertEqual(userResult.valid, true, "validateUser accepts Moe");
+            assertEqual(userResult.user, "Moe", "validateUser returns normalized Moe");
+            assertEqual(validateUser("trish").user, "Trish", "validateUser normalizes trish to Trish");
+            assertEqual(validateUser("Joe").valid, false, "validateUser rejects invalid user");
+
+            assertEqual(isValidUser("Moe"), true, "isValidUser returns true for Moe");
+            assertEqual(isValidUser("Invalid"), false, "isValidUser returns false for invalid");
+
+            assertEqual(validateDrinkType("beer"), "beer", "validateDrinkType accepts beer");
+            assertEqual(validateDrinkType("WINE"), "wine", "validateDrinkType normalizes case");
+            assertEqual(validateDrinkType("soda"), "other", "validateDrinkType defaults invalid to other");
+
+            assertEqual(isValidDrinkType("cocktail"), true, "isValidDrinkType accepts cocktail");
+            assertEqual(isValidDrinkType("juice"), false, "isValidDrinkType rejects juice");
+
+            assertEqual(isValidTimestamp(Date.now()), true, "isValidTimestamp accepts current time");
+            assertEqual(isValidTimestamp(0), false, "isValidTimestamp rejects 1970");
+
+            assertEqual(isValidDayKey("2025-12-27"), true, "isValidDayKey accepts valid format");
+            assertEqual(isValidDayKey("2025-1-27"), false, "isValidDayKey rejects single digit month");
+
+            let queryResult = validateQuery("How many drinks today?");
+            assertEqual(queryResult.valid, true, "validateQuery accepts valid query");
+            assertEqual(validateQuery("  ").valid, false, "validateQuery rejects whitespace");
+
+            logs.push('</div>');
+
+            // ===== ERROR HANDLER MODULE =====
+            logs.push('<h2>🛡️ Error Handler Module</h2><div class="test-group">');
+
+            const testKey = "test_reliability_" + Date.now();
+            assertEqual(safeSetItem(testKey, "test_value"), true, "safeSetItem returns true");
+            assertEqual(safeGetItem(testKey), "test_value", "safeGetItem retrieves stored value");
+            assertEqual(safeGetItem("nonexistent_12345"), null, "safeGetItem returns null for missing");
+            assertEqual(safeGetItem("nonexistent_12345", "fallback"), "fallback", "safeGetItem returns fallback");
+            assertEqual(safeRemoveItem(testKey), true, "safeRemoveItem returns true");
+            assertEqual(safeGetItem(testKey), null, "safeGetItem returns null after removal");
+
+            let asyncResult = await safeAsync(async () => "success", { maxRetries: 1, showErrorToast: false });
+            assertEqual(asyncResult.success, true, "safeAsync returns success for resolved promise");
+            assertEqual(asyncResult.data, "success", "safeAsync returns data");
+
+            let failCount = 0;
+            asyncResult = await safeAsync(async () => { failCount++; throw new Error("fail"); }, { maxRetries: 3, baseDelay: 10, showErrorToast: false });
+            assertEqual(asyncResult.success, false, "safeAsync returns failure after retries");
+            assertEqual(failCount, 3, "safeAsync retried 3 times");
+            assert(asyncResult.error instanceof Error, "safeAsync returns error object");
+
+            let debounceCount = 0;
+            const debouncedFn = debounce(() => debounceCount++, 50);
+            debouncedFn(); debouncedFn(); debouncedFn();
+            await new Promise(r => setTimeout(r, 100));
+            assertEqual(debounceCount, 1, "debounce only calls once after delay");
+
+            let throttleCount = 0;
+            const throttledFn = throttle(() => throttleCount++, 50);
+            throttledFn(); throttledFn(); throttledFn();
+            assertEqual(throttleCount, 1, "throttle calls immediately once");
+            await new Promise(r => setTimeout(r, 100));
+            throttledFn();
+            assert(throttleCount >= 2, "throttle allows call after limit");
+
+            logs.push('</div>');
+
+            // ===== CORE LOGIC =====
+            logs.push('<h2>🧮 Core Logic</h2><div class="test-group">');
+
+            assertEqual(normalizeDrinkType("Beer"), "beer", "normalizeDrinkType handles case");
+            assertEqual(normalizeDrinkType("   Wine "), "wine", "normalizeDrinkType handles whitespace");
+            assertEqual(normalizeDrinkType("Water"), "other", "normalizeDrinkType handles unknown");
+
+            assertEqual(safeInt("123"), 123, "safeInt parses numeric string");
+            assertEqual(safeInt("abc", 0), 0, "safeInt returns fallback on NaN");
+
+            assertEqual(parseIntent("zero streak").type, "zero_streak", "Intent: zero streak");
+            assertEqual(parseIntent("how many drinks today").type, "count", "Intent: count");
+            assertEqual(parseIntent("most common drink type").type, "common_type", "Intent: common type");
+
+            const historyMock = {
+                k1: { user: "Moe", timestamp: 1000, value: 1, drinkType: "beer" },
+                k2: { user: "Trish", timestamp: 2000, value: 1, drinkType: "wine" },
+                k3: { user: "Moe", timestamp: 1500, value: -1, drinkType: "beer" }
+            };
+            const cache = rebuildEventsCache(historyMock);
+            assertEqual(cache.length, 3, "Cache has correct length");
+            assertEqual(cache[0].ts, 1000, "Cache sorted by timestamp (1)");
+            assertEqual(cache[1].ts, 1500, "Cache sorted by timestamp (2)");
+            assertEqual(cache[2].ts, 2000, "Cache sorted by timestamp (3)");
+
+            const agg = aggregate(["Moe", "Trish"], { startMs: 0, endMs: 3000 }, {}, cache);
+            assertEqual(agg.sums.Moe, 0, "Aggregate: Moe +1-1=0");
+            assertEqual(agg.sums.Trish, 1, "Aggregate: Trish +1=1");
+            assertEqual(agg.total, 1, "Aggregate total is 1");
+
+            logs.push('</div>');
+
+            // ===== SUMMARY =====
+            const color = failed === 0 ? "#22c55e" : "#ef4444";
+            const emoji = failed === 0 ? "🎉" : "⚠️";
+            results.innerHTML = logs.join("") + `<div class="summary" style="color:${color}">${emoji} Passed: ${passed}, Failed: ${failed}</div>`;
+            document.body.setAttribute("data-status", failed === 0 ? "success" : "failure");
+        }
+
+        runTests().catch(e => {
+            results.innerHTML += `<div class="fail">Test runner crashed: ${e.message}<br><pre>${e.stack}</pre></div>`;
+            document.body.setAttribute("data-status", "failure");
+        });
+    </script>
+</body>
+
+</html>

@@ -18,6 +18,19 @@ import {
     attachLongPress
 } from "./ui.js";
 
+// Reliability imports
+import {
+    initGlobalErrorHandler, showToast, safeGetItem, safeSetItem,
+    debounce, throttle, showLoading, hideLoading
+} from "./error-handler.js";
+import {
+    validateDOM, sanitizeHtml, safeParseInt, validateUser, validateQuery
+} from "./validation.js";
+import {
+    initConnectionMonitor, onConnectionChange, isFirebaseConnected,
+    pushDrinkLog, setWeeklyPlan as setWeeklyPlanFirebase, markFirebaseReady
+} from "./firebase-ops.js";
+
 function getWeeklyPlan(user) {
     const n = state.weeklyPlans[user];
     if (!Number.isFinite(n) || isNaN(n) || n < 0) return 14;
@@ -34,28 +47,28 @@ function lastDrinkTypeKeyFor(user) {
     return user === "Trish" ? LS.lastDrinkTypeTrish : LS.lastDrinkTypeMoe;
 }
 
-function setWeeklyPlan(user, planInt) {
-    if (user !== "Moe" && user !== "Trish") return;
-    const n = safeInt(planInt, NaN);
-    if (!Number.isFinite(n) || isNaN(n)) return;
+async function setWeeklyPlan(user, planInt) {
+    const validation = validateUser(user);
+    if (!validation.valid) return;
 
-    const safe = Math.max(0, Math.min(99, Math.trunc(n)));
+    const n = safeParseInt(planInt, NaN, { min: 0, max: 99 });
+    if (!Number.isFinite(n)) return;
+
+    const safe = Math.trunc(n);
     state.weeklyPlans[user] = safe;
 
-    // Local cache
-    localStorage.setItem(weeklyPlanKeyFor(user), String(safe));
+    // Local cache (safe wrapper handles private browsing)
+    safeSetItem(weeklyPlanKeyFor(user), String(safe));
 
-    // Firebase source of truth
-    set(ref(db, `weeklyPlans/${user}`), safe).catch(err => {
-        console.warn("Failed to save weekly plan to Firebase:", err);
-    });
+    // Firebase source of truth (with retry and offline queue)
+    await setWeeklyPlanFirebase(user, safe);
 }
 
 function seedWeeklyPlansFromLocalStorage() {
     for (const u of ["Moe", "Trish"]) {
-        const raw = localStorage.getItem(weeklyPlanKeyFor(u));
-        const n = safeInt(raw, NaN);
-        if (Number.isFinite(n) && !isNaN(n) && n >= 0) state.weeklyPlans[u] = Math.min(99, Math.trunc(n));
+        const raw = safeGetItem(weeklyPlanKeyFor(u));
+        const n = safeParseInt(raw, NaN, { min: 0, max: 99 });
+        if (Number.isFinite(n)) state.weeklyPlans[u] = Math.trunc(n);
     }
 }
 
@@ -63,16 +76,12 @@ function seedWeeklyPlansFromLocalStorage() {
 
 function getLastDrinkType(user) {
     const key = lastDrinkTypeKeyFor(user);
-    const raw = localStorage.getItem(key);
+    const raw = safeGetItem(key);
     const normalized = normalizeDrinkType(raw);
-
     const fallback = (user === "Trish") ? "cocktail" : "beer";
-    if (!raw || normalizeDrinkType(raw) !== normalized || normalized === "other" && normalizeDrinkType(raw) !== "other") {
-        // If missing or invalid, do not break the flow
-    }
 
     if (!raw || !VALID_DRINK_TYPES.has(String(raw).toLowerCase())) {
-        localStorage.setItem(key, fallback);
+        safeSetItem(key, fallback);
         return fallback;
     }
 
@@ -82,7 +91,7 @@ function getLastDrinkType(user) {
 function setLastDrinkType(user, type) {
     const key = lastDrinkTypeKeyFor(user);
     const dt = normalizeDrinkType(type);
-    localStorage.setItem(key, dt);
+    safeSetItem(key, dt);
     updatePlusButtonIcon(user);
 }
 
@@ -94,8 +103,8 @@ function updatePlusButtonIcon(user) {
 }
 
 function ensureLastDrinkTypeDefaults() {
-    if (!localStorage.getItem(LS.lastDrinkTypeMoe)) localStorage.setItem(LS.lastDrinkTypeMoe, "beer");
-    if (!localStorage.getItem(LS.lastDrinkTypeTrish)) localStorage.setItem(LS.lastDrinkTypeTrish, "cocktail");
+    if (!safeGetItem(LS.lastDrinkTypeMoe)) safeSetItem(LS.lastDrinkTypeMoe, "beer");
+    if (!safeGetItem(LS.lastDrinkTypeTrish)) safeSetItem(LS.lastDrinkTypeTrish, "cocktail");
 }
 
 function getLastPositiveEventToday(user) {
@@ -139,13 +148,16 @@ function getTodayNetFor(user, drinkType) {
 }
 
 async function logDrink({ user, drinkType, delta }) {
-    if (user !== "Moe" && user !== "Trish") return;
-    const dt = normalizeDrinkType(drinkType);
-    const v = Math.trunc(safeInt(delta, 0));
-    if (v !== 1 && v !== -1) return;
+    const validation = validateUser(user);
+    if (!validation.valid) return { success: false };
 
-    await push(historyRef, {
-        user,
+    const dt = normalizeDrinkType(drinkType);
+    const v = Math.trunc(safeParseInt(delta, 0));
+    if (v !== 1 && v !== -1) return { success: false };
+
+    // Use reliable Firebase push with retry and offline queue
+    return await pushDrinkLog({
+        user: validation.user,
         timestamp: Date.now(),
         value: v,
         drinkType: dt
@@ -339,18 +351,54 @@ function startApp() {
 
 function login() {
     if (el.pass.value === "Moetrin") {
-        localStorage.setItem(LS.auth, "Moetrin");
+        safeSetItem(LS.auth, "Moetrin");
         startApp();
     } else {
-        alert("Wrong Password");
+        showToast("Wrong password. Please try again.", "error");
         el.pass.value = "";
+        el.pass.classList.add("shake-error");
+        setTimeout(() => el.pass.classList.remove("shake-error"), 500);
     }
 }
 
 // --- Initialization ---
 
+// Debounced versions of drink actions to prevent rapid-fire clicks
+const debouncedLogDrinkAction = debounce(logDrinkAction, 300);
+
+// Connection status UI update
+function updateConnectionStatusUI(connected) {
+    const statusEl = document.getElementById('connection-status');
+    const bannerEl = document.getElementById('offline-banner');
+
+    if (statusEl) {
+        statusEl.classList.toggle('offline', !connected);
+    }
+    if (bannerEl) {
+        bannerEl.classList.toggle('visible', !connected);
+    }
+}
+
 window.addEventListener("DOMContentLoaded", () => {
+    // Initialize error handling first
+    initGlobalErrorHandler();
+
+    // Initialize DOM and validate critical elements
     initDOM();
+    const domValidation = validateDOM();
+    if (!domValidation.valid) {
+        showToast('App failed to load correctly. Please refresh.', 'error');
+        console.error('[App] Critical DOM elements missing:', domValidation.missing);
+        // Continue anyway - partial functionality better than nothing
+    }
+    if (domValidation.warnings.length > 0) {
+        console.warn('[App] Some features may not work:', domValidation.warnings);
+    }
+
+    // Initialize Firebase connection monitoring
+    initConnectionMonitor();
+    onConnectionChange(updateConnectionStatusUI);
+
     seedWeeklyPlansFromLocalStorage();
     ensureLastDrinkTypeDefaults();
 
@@ -360,13 +408,13 @@ window.addEventListener("DOMContentLoaded", () => {
 
     if (el.btnProfileMoe) {
         el.btnProfileMoe.addEventListener("click", () => {
-            localStorage.setItem(LS.selectedUser, "Moe");
+            safeSetItem(LS.selectedUser, "Moe");
             bootApp();
         });
     }
     if (el.btnProfileTrish) {
         el.btnProfileTrish.addEventListener("click", () => {
-            localStorage.setItem(LS.selectedUser, "Trish");
+            safeSetItem(LS.selectedUser, "Trish");
             bootApp();
         });
     }
@@ -378,8 +426,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
     if (el.btnSettingsClose) el.btnSettingsClose.addEventListener("click", hideSettingsModal);
     if (el.btnSettingsCancel) el.btnSettingsCancel.addEventListener("click", hideSettingsModal);
-    if (el.btnSwitchMoe) el.btnSwitchMoe.addEventListener("click", () => { localStorage.setItem(LS.selectedUser, "Moe"); syncSettingsUIFromState(); });
-    if (el.btnSwitchTrish) el.btnSwitchTrish.addEventListener("click", () => { localStorage.setItem(LS.selectedUser, "Trish"); syncSettingsUIFromState(); });
+    if (el.btnSwitchMoe) el.btnSwitchMoe.addEventListener("click", () => { safeSetItem(LS.selectedUser, "Moe"); syncSettingsUIFromState(); });
+    if (el.btnSwitchTrish) el.btnSwitchTrish.addEventListener("click", () => { safeSetItem(LS.selectedUser, "Trish"); syncSettingsUIFromState(); });
 
     if (el.btnSettingsSave) el.btnSettingsSave.addEventListener("click", () => {
         const u = getSelectedUser();
@@ -391,15 +439,15 @@ window.addEventListener("DOMContentLoaded", () => {
         hideSettingsModal();
     });
 
-    // Wiring Tracker Controls
+    // Wiring Tracker Controls (with debouncing to prevent rapid clicks)
     attachLongPress({
         element: el.btnMoePlus,
-        onTap: () => logDrinkAction("Moe", getLastDrinkType("Moe"), 1),
+        onTap: () => debouncedLogDrinkAction("Moe", getLastDrinkType("Moe"), 1),
         onLongPress: () => openDrinkTypeModal("Moe")
     });
     attachLongPress({
         element: el.btnTrishPlus,
-        onTap: () => logDrinkAction("Trish", getLastDrinkType("Trish"), 1),
+        onTap: () => debouncedLogDrinkAction("Trish", getLastDrinkType("Trish"), 1),
         onLongPress: () => openDrinkTypeModal("Trish")
     });
     attachLongPress({
@@ -471,19 +519,20 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     onValue(weeklyPlansRef, (snapshot) => {
-        // ... sync weekly plans ...
         const data = snapshot.val() || {};
         for (const u of ["Moe", "Trish"]) {
-            const n = safeInt(data?.[u], NaN);
-            if (Number.isFinite(n) && n >= 0) {
+            const n = safeParseInt(data?.[u], NaN, { min: 0, max: 99 });
+            if (Number.isFinite(n)) {
                 state.weeklyPlans[u] = n;
-                localStorage.setItem(weeklyPlanKeyFor(u), String(n));
+                safeSetItem(weeklyPlanKeyFor(u), String(n));
             }
         }
+        // Mark Firebase as ready after first data sync
+        markFirebaseReady();
     });
 
     // Auto Login Check
-    if (localStorage.getItem(LS.auth) === "Moetrin") startApp();
+    if (safeGetItem(LS.auth) === "Moetrin") startApp();
 
     // Tab Switching
     document.getElementById("tab-tracker")?.addEventListener("click", () => switchTab("tracker"));
