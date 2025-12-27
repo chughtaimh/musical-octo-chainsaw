@@ -179,7 +179,10 @@ export function renderMiniDailyBarChart({ labels, datasets }) {
                 x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
                 y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
             },
-            animation: { duration: 450 }
+            animation: {
+                duration: 500,
+                delay: (context) => context.type === 'data' && context.mode === 'default' ? context.dataIndex * 30 : 0
+            }
         }
     });
 }
@@ -245,7 +248,11 @@ export function renderChart(intent, userInfo, agg, range) {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: commonPlugins,
-                animation: { duration: 450 }
+                animation: {
+                    duration: 500,
+                    animateRotate: true,
+                    animateScale: true
+                }
             }
         });
         return;
@@ -283,7 +290,10 @@ export function renderChart(intent, userInfo, agg, range) {
                     x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" } } },
                     y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
                 },
-                animation: { duration: 450 }
+                animation: {
+                    duration: 500,
+                    delay: (context) => context.type === 'data' && context.mode === 'default' ? context.dataIndex * 30 : 0
+                }
             }
         });
         return;
@@ -317,7 +327,10 @@ export function renderChart(intent, userInfo, agg, range) {
                 x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
                 y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
             },
-            animation: { duration: 450 }
+            animation: {
+                duration: 500,
+                delay: (context) => context.type === 'data' && context.mode === 'default' ? context.dataIndex * 30 : 0
+            }
         }
     });
 }
@@ -393,7 +406,10 @@ export function renderHistoryChart() {
                 x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
                 y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
             },
-            animation: { duration: 450 }
+            animation: {
+                duration: 500,
+                delay: (context) => context.type === 'data' && context.mode === 'default' ? context.dataIndex * 40 : 0
+            }
         }
     });
 }
@@ -404,6 +420,76 @@ export function shakeCard(user) {
     card.style.transform = "translateX(5px)";
     setTimeout(() => (card.style.transform = "translateX(-5px)"), 50);
     setTimeout(() => (card.style.transform = "none"), 100);
+}
+
+/**
+ * Confetti celebration effect for milestones
+ * Triggers confetti particles from the center of the screen
+ */
+export function triggerConfetti() {
+    const colors = ['#6ab7ff', '#ff8da1', '#ffd700', '#00ff88', '#ff6b6b'];
+    const particleCount = 40;
+
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'confetti-particle';
+
+        // Random color
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+
+        // Random starting position (center of screen)
+        const startX = window.innerWidth / 2 + (Math.random() - 0.5) * 100;
+        const startY = window.innerHeight / 2;
+        particle.style.left = startX + 'px';
+        particle.style.top = startY + 'px';
+
+        // Random animation delay for stagger effect
+        particle.style.animationDelay = (Math.random() * 0.3) + 's';
+
+        // Random horizontal spread
+        const spread = (Math.random() - 0.5) * window.innerWidth * 0.8;
+        particle.style.setProperty('--spread-x', spread + 'px');
+
+        document.body.appendChild(particle);
+
+        // Remove after animation completes
+        setTimeout(() => particle.remove(), 1800);
+    }
+}
+
+/**
+ * Animate count number with odometer effect (only on initial Firebase load)
+ * @param {HTMLElement} element - The count display element
+ * @param {number} targetValue - The target number to animate to
+ */
+export function animateCountLoad(element, targetValue) {
+    if (!element) return;
+
+    // Add loading class for pulse effect
+    element.classList.add('loading');
+
+    const startValue = parseInt(element.textContent) || 0;
+    const duration = 300; // 300ms animation
+    const startTime = performance.now();
+
+    const animate = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Ease-out cubic for smooth deceleration
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        const currentValue = Math.round(startValue + (targetValue - startValue) * easeOut);
+
+        element.textContent = currentValue;
+
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            element.classList.remove('loading');
+        }
+    };
+
+    requestAnimationFrame(animate);
 }
 
 export function showKanpaiPop(user) {
