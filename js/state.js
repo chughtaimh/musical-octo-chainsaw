@@ -1,7 +1,7 @@
 export const state = {
     allHistory: {},
     eventsCache: [],
-    weeklyPlans: { Moe: 14, Trish: 14 },
+    weeklyPlans: { Moe: 2, Trish: 1 },
     ensuredWeeklyPlansOnce: false,
     activeModalUser: null
 };
