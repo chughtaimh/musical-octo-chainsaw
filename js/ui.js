@@ -419,30 +419,30 @@ export function showKanpaiPop(user) {
 
 export function openDrinkTypeModal(user) {
     state.activeModalUser = user;
-    if (!el.drinkTypeModal) return;
-    el.drinkTypeModal.classList.remove("hidden");
-    el.drinkTypeModal.setAttribute("aria-hidden", "false");
+    if (!el.drinktypeModal) return;
+    el.drinktypeModal.classList.remove("hidden");
+    el.drinktypeModal.setAttribute("aria-hidden", "false");
 }
 
 export function closeDrinkTypeModal() {
-    if (!el.drinkTypeModal) return;
-    el.drinkTypeModal.classList.add("hidden");
-    el.drinkTypeModal.setAttribute("aria-hidden", "true");
+    if (!el.drinktypeModal) return;
+    el.drinktypeModal.classList.add("hidden");
+    el.drinktypeModal.setAttribute("aria-hidden", "true");
     state.activeModalUser = null;
 }
 
 export function openAdjustTodayModal(user) {
     state.activeModalUser = user;
-    if (!el.adjustTodayModal) return;
-    el.adjustTodayModal.classList.remove("hidden");
-    el.adjustTodayModal.setAttribute("aria-hidden", "false");
+    if (!el.adjusttodayModal) return;
+    el.adjusttodayModal.classList.remove("hidden");
+    el.adjusttodayModal.setAttribute("aria-hidden", "false");
     renderAdjustTodayUI();
 }
 
 export function closeAdjustTodayModal() {
-    if (!el.adjustTodayModal) return;
-    el.adjustTodayModal.classList.add("hidden");
-    el.adjustTodayModal.setAttribute("aria-hidden", "true");
+    if (!el.adjusttodayModal) return;
+    el.adjusttodayModal.classList.add("hidden");
+    el.adjusttodayModal.setAttribute("aria-hidden", "true");
     state.activeModalUser = null;
 }
 
@@ -458,10 +458,10 @@ export function closeAdjustTodayModal() {
 import { getTodayCountsByType } from "./logic.js";
 
 export function renderAdjustTodayUI() {
-    if (!el.adjustTodayRows || !state.activeModalUser) return;
+    if (!el.adjusttodayRows || !state.activeModalUser) return;
 
     const user = state.activeModalUser;
-    if (el.adjustTodayTitle) el.adjustTodayTitle.textContent = `Adjust today (${user})`;
+    if (el.adjusttodayTitle) el.adjusttodayTitle.textContent = `Adjust today (${user})`;
 
     const counts = getTodayCountsByType(user, state.eventsCache);
 
@@ -472,7 +472,7 @@ export function renderAdjustTodayUI() {
         { type: "other", label: "✨ Other" }
     ];
 
-    el.adjustTodayRows.innerHTML = rows.map(r => {
+    el.adjusttodayRows.innerHTML = rows.map(r => {
         const c = Math.max(0, counts[r.type] || 0);
         const disabled = c <= 0 ? "disabled" : "";
         return `
