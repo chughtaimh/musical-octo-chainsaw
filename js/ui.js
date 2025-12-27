@@ -2,7 +2,7 @@ import { cssVar, normalizeDrinkType, drinkTypeEmoji, drinkTypeLabel, monthNameFr
 import { state } from "./state.js";
 import { aggregate, buildTimeBucketsFromPerDay, getWeekProgress } from "./logic.js";
 import { LS, NY_TZ, DOW_SHORT } from "./constants.js";
-import { getWeeklyPlan } from "./app.js"; // Circular? app depends on UI, UI depends on app for getWeeklyPlan?
+
 // Better to move getWeeklyPlan to logic or state helper.
 // Actually getWeeklyPlan reads from state.weeklyPlans. I can just export a helper from state or logic.
 
