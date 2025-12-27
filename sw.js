@@ -1,4 +1,4 @@
-const CACHE_NAME = "drinks-tracker-v10";
+const CACHE_NAME = "drinks-tracker-v11";
 const ASSETS = [
     "./",
     "./index.html",
@@ -17,9 +17,14 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
+    self.skipWaiting(); // Force this SW to become active immediately
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
     );
+});
+
+self.addEventListener("activate", (event) => {
+    event.waitUntil(clients.claim()); // Take control of all open clients
 });
 
 self.addEventListener("fetch", (event) => {
