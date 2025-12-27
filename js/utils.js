@@ -172,3 +172,10 @@ export function labelForMonth(monthStartMs) {
     const d = new Date(monthStartMs);
     return `${monthNameFromIndex(d.getMonth()).slice(0, 3)} ${d.getFullYear()}`;
 }
+
+export function calcRangeSpanDays(range) {
+    if (!range || !range.startMs || !range.endMs) return 0;
+    const diff = range.endMs - range.startMs;
+    // Add small buffer to account for daylight savings edge cases
+    return Math.ceil((diff + 1000) / (24 * 60 * 60 * 1000));
+}
