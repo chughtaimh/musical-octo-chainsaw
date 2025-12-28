@@ -77,6 +77,30 @@ function seedWeeklyPlansFromLocalStorage() {
     }
 }
 
+    }
+}
+
+function seedCommitmentsFromLocalStorage() {
+    for (const u of ["Moe", "Trish"]) {
+        const key = u === "Trish" ? LS.commitmentTrish : LS.commitmentMoe;
+        const raw = safeGetItem(key);
+        if (raw) {
+            try {
+                // If the stored value is JSON object
+                if (raw.startsWith("{")) {
+                    const parsed = JSON.parse(raw);
+                    state.commitments[u] = parsed;
+                } else {
+                    // Backwards compatibility or plain text
+                    state.commitments[u] = { why: raw, setDate: null };
+                }
+            } catch (e) {
+                console.warn("Failed to parse commitment for", u, e);
+            }
+        }
+    }
+}
+
 // --- App Logic ---
 
 function getLastDrinkType(user) {
@@ -443,6 +467,7 @@ window.addEventListener("DOMContentLoaded", () => {
     onConnectionChange(updateConnectionStatusUI);
 
     seedWeeklyPlansFromLocalStorage();
+    seedCommitmentsFromLocalStorage();
     ensureLastDrinkTypeDefaults();
 
     // Listeners
@@ -477,7 +502,21 @@ window.addEventListener("DOMContentLoaded", () => {
         if (!u) return;
         const n = parseInt(el.weeklyPlanInput?.value || "", 10);
         if (!Number.isFinite(n)) return;
+        if (!Number.isFinite(n)) return;
         setWeeklyPlan(u, n);
+
+        // Save commitment
+        const why = document.getElementById("commitment-why")?.value;
+        if (typeof why === "string") {
+            const oldWhy = state.commitments[u]?.why || "";
+            if (why !== oldWhy) {
+                const newCommitment = { why, setDate: Date.now() };
+                state.commitments[u] = newCommitment;
+                const key = u === "Trish" ? LS.commitmentTrish : LS.commitmentMoe;
+                safeSetItem(key, JSON.stringify(newCommitment));
+            }
+        }
+
         syncSettingsUIFromState();
         hideSettingsModal();
     });

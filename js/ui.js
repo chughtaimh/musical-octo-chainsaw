@@ -132,6 +132,9 @@ export function syncSettingsUIFromState() {
 
     if (el.weeklyPlanInput) el.weeklyPlanInput.value = String(getPlanFromState(u));
     if (el.planHint) el.planHint.innerText = `Weekly target for: ${u}`;
+
+    // NEW: Sync commitment data
+    syncCommitmentUI(u, state.commitments[u]);
 }
 
 export function setQueryResult(html, ok) {
