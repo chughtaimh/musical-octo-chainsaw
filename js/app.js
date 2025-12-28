@@ -183,13 +183,48 @@ async function logDrink({ user, drinkType, delta }) {
     const v = Math.trunc(safeParseInt(delta, 0));
     if (v !== 1 && v !== -1) return { success: false };
 
-    // Use reliable Firebase push with retry and offline queue
-    return await pushDrinkLog({
+    // --- OPTIMISTIC UPDATE ---
+    const entry = {
         user: validation.user,
-        timestamp: Date.now(),
+        ts: Date.now(),
+        v,
+        drinkType: dt,
+        dayStart: startOfDayLocal(Date.now()),
+        isOptimistic: true // Local flag to identify temporary entries
+    };
+
+    // Add to local cache immediately
+    state.eventsCache.push(entry);
+    calculate(); // Re-render UI immediately
+
+    // --- BACKGROUND SYNC ---
+    // We don't await this so the UI stays responsive
+    pushDrinkLog({
+        user: validation.user,
+        timestamp: entry.ts,
         value: v,
         drinkType: dt
+    }).then(result => {
+        // If it was pushed successfully, we remove our optimistic entry 
+        // and let onValue(historyRef) provide the real one.
+        // If it was queued (offline), we KEEP the optimistic entry 
+        // so it stays visible while offline.
+        if (result.success || (!result.success && !result.queued)) {
+            state.eventsCache = state.eventsCache.filter(e => e !== entry);
+
+            if (!result.success) {
+                calculate();
+                showToast("Failed to save drink. Please try again.", "error");
+            }
+            // If success, calculate() will be called by onValue soon
+        }
+    }).catch(err => {
+        console.error("[App] Async logDrink error:", err);
+        state.eventsCache = state.eventsCache.filter(e => e !== entry);
+        calculate();
     });
+
+    return { success: true };
 }
 
 async function logDrinkAction(user, drinkType, delta) {
@@ -202,13 +237,13 @@ async function logDrinkAction(user, drinkType, delta) {
             shakeCard(user);
             return;
         }
-        await logDrink({ user, drinkType: dt, delta: -1 });
+        logDrink({ user, drinkType: dt, delta: -1 }); // No await
         shakeCard(user);
         return;
     }
 
     if (v === 1) {
-        await logDrink({ user, drinkType: dt, delta: 1 });
+        logDrink({ user, drinkType: dt, delta: 1 }); // No await
         showKanpaiPop(user);
     }
 }
@@ -429,8 +464,9 @@ function login() {
 
 // --- Initialization ---
 
-// Debounced versions of drink actions to prevent rapid-fire clicks
-const debouncedLogDrinkAction = debounce(logDrinkAction, 300);
+// Reduced debouncing for faster interaction
+const debouncedLogDrinkAction = debounce(logDrinkAction, 80);
+const debouncedMinusAction = debounce(logDrinkAction, 150);
 
 // Connection status UI update
 function updateConnectionStatusUI(connected) {
@@ -533,19 +569,19 @@ window.addEventListener("DOMContentLoaded", () => {
     });
     attachLongPress({
         element: el.btnMoeMinus,
-        onTap: async () => {
+        onTap: () => {
             const last = getLastPositiveEventToday("Moe");
-            if (last) await logDrink({ user: "Moe", drinkType: normalizeDrinkType(last.drinkType), delta: -1 });
-            shakeCard("Moe");
+            if (last) debouncedMinusAction("Moe", normalizeDrinkType(last.drinkType), -1);
+            else shakeCard("Moe");
         },
         onLongPress: () => openAdjustTodayModal("Moe")
     });
     attachLongPress({
         element: el.btnTrishMinus,
-        onTap: async () => {
+        onTap: () => {
             const last = getLastPositiveEventToday("Trish");
-            if (last) await logDrink({ user: "Trish", drinkType: normalizeDrinkType(last.drinkType), delta: -1 });
-            shakeCard("Trish");
+            if (last) debouncedMinusAction("Trish", normalizeDrinkType(last.drinkType), -1);
+            else shakeCard("Trish");
         },
         onLongPress: () => openAdjustTodayModal("Trish")
     });
@@ -593,8 +629,18 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Firebase Listeners
     onValue(historyRef, (snapshot) => {
+        // Capture existing optimistic entries to prevent flickering
+        const optimisticEntries = state.eventsCache.filter(e => e.isOptimistic);
+
         state.allHistory = snapshot.val() || {};
         state.eventsCache = rebuildEventsCache(state.allHistory);
+
+        // Merge optimistic entries back in (they will be overwritten once the real ones arrive from Firebase)
+        if (optimisticEntries.length > 0) {
+            state.eventsCache.push(...optimisticEntries);
+            state.eventsCache.sort((a, b) => a.ts - b.ts);
+        }
+
         calculate();
         renderHistoryChart();
     });
