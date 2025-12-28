@@ -77,8 +77,7 @@ function seedWeeklyPlansFromLocalStorage() {
     }
 }
 
-    }
-}
+
 
 function seedCommitmentsFromLocalStorage() {
     for (const u of ["Moe", "Trish"]) {
