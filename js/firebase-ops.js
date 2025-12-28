@@ -3,7 +3,7 @@
  * Reliable Firebase operations with retry logic, connection monitoring, and offline queue
  */
 
-import { db, historyRef, weeklyPlansRef, commitmentsRef, push, set, ref, onValue } from "./firebase-config.js";
+import { db, push, set, ref, onValue } from "./firebase-config.js";
 import { showToast, safeAsync } from "./error-handler.js";
 
 // ============================================================

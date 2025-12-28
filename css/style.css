@@ -95,11 +95,33 @@ header {
 #app-content {
   flex: 1;
   padding: 25px;
+  /* Add padding to prevent content being hidden behind fixed footer */
+  padding-bottom: calc(85px + env(safe-area-inset-bottom));
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   position: relative;
   -webkit-overflow-scrolling: touch;
+  /* Fix for flex item scrolling behavior */
+  min-height: 0;
+}
+
+/* ... */
+
+#main-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 2px solid rgba(255, 255, 255, 0.5);
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom);
+  height: 80px;
+  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.05);
+  z-index: 100;
 }
 
 .hidden {
@@ -440,15 +462,7 @@ input:focus {
   display: block;
 }
 
-#main-nav {
-  background: white;
-  border-top: 2px solid #eee;
-  display: flex;
-  padding-bottom: env(safe-area-inset-bottom);
-  height: 80px;
-  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.02);
-  z-index: 10;
-}
+
 
 .nav-item {
   flex: 1;
@@ -1011,6 +1025,7 @@ input:focus {
 
 /* Skeleton loading pulse */
 @keyframes pulse {
+
   0%,
   100% {
     opacity: 1;
@@ -1034,6 +1049,7 @@ input:focus {
 
 /* Streak fire animation */
 @keyframes fireFlicker {
+
   0%,
   100% {
     transform: scale(1) rotate(-2deg);
@@ -1222,6 +1238,7 @@ input:focus {
 }
 
 @keyframes connectionPulse {
+
   0%,
   100% {
     background-position: 0% 50%;
@@ -1324,6 +1341,7 @@ input:focus {
 /* ===== SHAKE ANIMATION FOR ERRORS ===== */
 
 @keyframes shakeError {
+
   0%,
   100% {
     transform: translateX(0);
