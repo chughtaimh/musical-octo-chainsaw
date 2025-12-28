@@ -1,24 +1,30 @@
-import { cssVar, normalizeDrinkType, drinkTypeEmoji, drinkTypeLabel, monthNameFromIndex, plural, startOfDayLocal, startOfWeekMonday, labelForDay, labelForWeek, labelForMonth, calcRangeSpanDays } from "./utils.js";
+import {
+    cssVar,
+    normalizeDrinkType,
+    drinkTypeEmoji,
+    drinkTypeLabel,
+    monthNameFromIndex,
+    plural,
+    startOfDayLocal,
+    startOfWeekMonday,
+    labelForDay,
+    labelForWeek,
+    labelForMonth,
+    calcRangeSpanDays
+} from "./utils.js";
 import { state } from "./state.js";
-import { aggregate, buildTimeBucketsFromPerDay, getWeekProgress } from "./logic.js";
+import { aggregate, buildTimeBucketsFromPerDay, getWeekProgress, getTodayCountsByType } from "./logic.js";
 import { LS, NY_TZ, DOW_SHORT, DAY_MS } from "./constants.js";
 import { safeGetItem } from "./error-handler.js";
 import { sanitizeHtml } from "./validation.js";
 
-// Better to move getWeeklyPlan to logic or state helper.
-// Actually getWeeklyPlan reads from state.weeklyPlans. I can just export a helper from state or logic.
-
-// Let's redefine getWeeklyPlan here or import it if I move it.
-// I'll move getWeeklyPlan to logic.js or just inline it reading from state.
 function getPlanFromState(user) {
     const n = state.weeklyPlans[user];
     if (!Number.isFinite(n) || isNaN(n) || n < 0) return 14;
     return Math.min(99, Math.trunc(n));
 }
 
-// Check standard imports
-// We need chart.js. It is loaded via CDN in index.html. Assumed to be on window.Chart.
-
+// Chart.js is loaded via CDN in index.html, available at window.Chart.
 export const el = {};
 
 export function initDOM() {
@@ -35,22 +41,25 @@ export function initDOM() {
 
     for (const id of ids) {
         const node = document.getElementById(id);
-        if (node) {
-            // Map camelCase keys
-            const key = id.replace(/-([a-z])/g, (g) => g[1].toUpperCase()).replace(/^appHeader$/, "header").replace(/^passInput$/, "pass");
-            // Special mappings from original code
-            if (id === "query-chart") el.queryChartCanvas = node;
-            else if (id === "history-chart") el.historyChartCanvas = node;
-            else if (id === "pass-input") el.pass = node;
-            else el[key] = node;
-        }
+        if (!node) continue;
+
+        const key = id
+            .replace(/-([a-z])/g, (g) => g[1].toUpperCase())
+            .replace(/^appHeader$/, "header")
+            .replace(/^passInput$/, "pass");
+
+        if (id === "query-chart") el.queryChartCanvas = node;
+        else if (id === "history-chart") el.historyChartCanvas = node;
+        else if (id === "pass-input") el.pass = node;
+        else el[key] = node;
     }
-    // Manual fixups for keys that didn't match auto-conversion perfectly or were aliased
+
+    // Manual fixups / aliases
     el.header = document.getElementById("app-header");
     el.pass = document.getElementById("pass-input");
     el.queryChartCanvas = document.getElementById("query-chart");
     el.historyChartCanvas = document.getElementById("history-chart");
-    el.nav = el.mainNav; // Alias for app.js usage
+    el.nav = el.mainNav;
 }
 
 export function updateText(id, val) {
@@ -65,7 +74,9 @@ export function switchTab(tab) {
     el.viewTracker.classList.toggle("hidden", tab !== "tracker");
     el.viewAnalytics.classList.toggle("hidden", tab !== "analytics");
 
-    el.header.childNodes[0].textContent = tab === "tracker" ? "Check in" : "History";
+    if (el.header && el.header.childNodes?.[0]) {
+        el.header.childNodes[0].textContent = tab === "tracker" ? "Check in" : "History";
+    }
 }
 
 export function getSelectedUser() {
@@ -82,15 +93,15 @@ export function applySelectedUserUI() {
 
 export function showProfileModal() {
     if (!el.profileModal) return;
+
     el.profileModal.classList.remove("hidden");
     el.profileModal.setAttribute("aria-hidden", "false");
 
     if (el.btnSettings) el.btnSettings.classList.add("hidden");
-
     if (el.nav) el.nav.classList.add("hidden");
     if (el.viewTracker) el.viewTracker.classList.add("hidden");
     if (el.viewAnalytics) el.viewAnalytics.classList.add("hidden");
-    if (el.header) el.header.childNodes[0].textContent = "Who are you?";
+    if (el.header && el.header.childNodes?.[0]) el.header.childNodes[0].textContent = "Who are you?";
 }
 
 export function hideProfileModal() {
@@ -142,7 +153,6 @@ export function destroyQueryChart() {
 
 export function renderMiniDailyBarChart({ labels, datasets }) {
     destroyQueryChart();
-
     if (!window.Chart || !el.queryChartCanvas || !el.queryChartWrap) return;
 
     const textColor = cssVar("--text", "#544a4a");
@@ -178,12 +188,19 @@ export function renderMiniDailyBarChart({ labels, datasets }) {
             maintainAspectRatio: false,
             plugins: commonPlugins,
             scales: {
-                x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
-                y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
+                x: {
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { weight: "800" }, precision: 0 }
+                }
             },
             animation: {
                 duration: 500,
-                delay: (context) => context.type === 'data' && context.mode === 'default' ? context.dataIndex * 30 : 0
+                delay: (context) => (context.type === "data" && context.mode === "default") ? context.dataIndex * 30 : 0
             }
         }
     });
@@ -226,15 +243,12 @@ export function renderChart(intent, userInfo, agg, range) {
             titleColor: "#fff",
             bodyColor: "#fff",
             footerColor: "#fff",
-            callbacks: {
-                labelTextColor: () => "#fff"
-            }
+            callbacks: { labelTextColor: () => "#fff" }
         }
     };
 
     if (wantsPie) {
         el.queryChartWrap.classList.remove("hidden");
-
         queryChart = new window.Chart(el.queryChartCanvas, {
             type: "pie",
             data: {
@@ -250,11 +264,7 @@ export function renderChart(intent, userInfo, agg, range) {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: commonPlugins,
-                animation: {
-                    duration: 500,
-                    animateRotate: true,
-                    animateScale: true
-                }
+                animation: { duration: 500, animateRotate: true, animateScale: true }
             }
         });
         return;
@@ -294,7 +304,7 @@ export function renderChart(intent, userInfo, agg, range) {
                 },
                 animation: {
                     duration: 500,
-                    delay: (context) => context.type === 'data' && context.mode === 'default' ? context.dataIndex * 30 : 0
+                    delay: (context) => (context.type === "data" && context.mode === "default") ? context.dataIndex * 30 : 0
                 }
             }
         });
@@ -326,12 +336,19 @@ export function renderChart(intent, userInfo, agg, range) {
             maintainAspectRatio: false,
             plugins: commonPlugins,
             scales: {
-                x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
-                y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
+                x: {
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { weight: "800" }, precision: 0 }
+                }
             },
             animation: {
                 duration: 500,
-                delay: (context) => context.type === 'data' && context.mode === 'default' ? context.dataIndex * 30 : 0
+                delay: (context) => (context.type === "data" && context.mode === "default") ? context.dataIndex * 30 : 0
             }
         }
     });
@@ -349,12 +366,11 @@ export function destroyHistoryChart() {
 
 export function renderHistoryChart() {
     destroyHistoryChart();
-
     if (!window.Chart || !el.historyChartCanvas || !el.historyChartWrap) return;
 
     const u = getSelectedUser();
     if (!u) {
-        if (el.historyChartWrap) el.historyChartWrap.classList.add("hidden");
+        el.historyChartWrap.classList.add("hidden");
         return;
     }
 
@@ -370,21 +386,19 @@ export function renderHistoryChart() {
 
     const total = agg?.sums?.[u] || 0;
     if (total === 0 || !bucketed.labels.length) {
-        if (el.historyChartWrap) el.historyChartWrap.classList.add("hidden");
+        el.historyChartWrap.classList.add("hidden");
         return;
     }
 
     const color = (u === "Moe") ? cssVar("--moe", "#6ab7ff") : cssVar("--trish", "#ff8da1");
 
-    const datasets = [
-        {
-            label: u,
-            data: bucketed.series.map(s => s[u] || 0),
-            backgroundColor: color,
-            borderRadius: 12,
-            borderSkipped: false
-        }
-    ];
+    const datasets = [{
+        label: u,
+        data: bucketed.series.map(s => s[u] || 0),
+        backgroundColor: color,
+        borderRadius: 12,
+        borderSkipped: false
+    }];
 
     el.historyChartWrap.classList.remove("hidden");
     historyChart = new window.Chart(el.historyChartCanvas, {
@@ -394,9 +408,7 @@ export function renderHistoryChart() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false,
-                },
+                legend: { display: false },
                 tooltip: {
                     enabled: true,
                     titleColor: "#fff",
@@ -405,12 +417,19 @@ export function renderHistoryChart() {
                 }
             },
             scales: {
-                x: { grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true } },
-                y: { beginAtZero: true, grid: { display: false }, ticks: { color: textColor, font: { weight: "800" }, precision: 0 } }
+                x: {
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { weight: "800" }, maxRotation: 0, autoSkip: true }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { weight: "800" }, precision: 0 }
+                }
             },
             animation: {
                 duration: 500,
-                delay: (context) => context.type === 'data' && context.mode === 'default' ? context.dataIndex * 40 : 0
+                delay: (context) => (context.type === "data" && context.mode === "default") ? context.dataIndex * 40 : 0
             }
         }
     });
@@ -424,71 +443,50 @@ export function shakeCard(user) {
     setTimeout(() => (card.style.transform = "none"), 100);
 }
 
-/**
- * Confetti celebration effect for milestones
- * Triggers confetti particles from the center of the screen
- */
+// Confetti celebration effect
 export function triggerConfetti() {
-    const colors = ['#6ab7ff', '#ff8da1', '#ffd700', '#00ff88', '#ff6b6b'];
+    const colors = ["#6ab7ff", "#ff8da1", "#ffd700", "#00ff88", "#ff6b6b"];
     const particleCount = 40;
 
     for (let i = 0; i < particleCount; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'confetti-particle';
-
-        // Random color
+        const particle = document.createElement("div");
+        particle.className = "confetti-particle";
         particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
 
-        // Random starting position (center of screen)
         const startX = window.innerWidth / 2 + (Math.random() - 0.5) * 100;
         const startY = window.innerHeight / 2;
-        particle.style.left = startX + 'px';
-        particle.style.top = startY + 'px';
+        particle.style.left = startX + "px";
+        particle.style.top = startY + "px";
 
-        // Random animation delay for stagger effect
-        particle.style.animationDelay = (Math.random() * 0.3) + 's';
+        particle.style.animationDelay = (Math.random() * 0.3) + "s";
 
-        // Random horizontal spread
         const spread = (Math.random() - 0.5) * window.innerWidth * 0.8;
-        particle.style.setProperty('--spread-x', spread + 'px');
+        particle.style.setProperty("--spread-x", spread + "px");
 
         document.body.appendChild(particle);
-
-        // Remove after animation completes
         setTimeout(() => particle.remove(), 1800);
     }
 }
 
-/**
- * Animate count number with odometer effect (only on initial Firebase load)
- * @param {HTMLElement} element - The count display element
- * @param {number} targetValue - The target number to animate to
- */
 export function animateCountLoad(element, targetValue) {
     if (!element) return;
 
-    // Add loading class for pulse effect
-    element.classList.add('loading');
+    element.classList.add("loading");
 
     const startValue = parseInt(element.textContent) || 0;
-    const duration = 300; // 300ms animation
+    const duration = 300;
     const startTime = performance.now();
 
     const animate = (currentTime) => {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / duration, 1);
-
-        // Ease-out cubic for smooth deceleration
         const easeOut = 1 - Math.pow(1 - progress, 3);
         const currentValue = Math.round(startValue + (targetValue - startValue) * easeOut);
 
         element.textContent = currentValue;
 
-        if (progress < 1) {
-            requestAnimationFrame(animate);
-        } else {
-            element.classList.remove('loading');
-        }
+        if (progress < 1) requestAnimationFrame(animate);
+        else element.classList.remove("loading");
     };
 
     requestAnimationFrame(animate);
@@ -532,17 +530,6 @@ export function closeAdjustTodayModal() {
     el.adjusttodayModal.setAttribute("aria-hidden", "true");
     state.activeModalUser = null;
 }
-
-// Need logic for getTodayCountsByType to render UI...
-// I'll import it from app.js or logic.js if moved. 
-// getTodayCountsByType should be in Logic.
-// Let's assume I export it from logic.js. I'll need to add it there.
-
-// IMPORTANT: Missing function getTodayCountsByType in Logic.js!
-// I will just implement it here for now or add it to logic.js later.
-// Actually, it's better to keep logic in logic.js. I'll patch logic.js in a moment.
-// For now I'll stub it or assume it's imported.
-import { getTodayCountsByType } from "./logic.js";
 
 export function renderAdjustTodayUI() {
     if (!el.adjusttodayRows || !state.activeModalUser) return;
@@ -632,26 +619,35 @@ export function attachLongPress({ element, onTap, onLongPress, ms = 450 }) {
     }, true);
 }
 
-// ===== NEW UI FUNCTIONS FOR PLAN ADHERENCE FEATURES =====
+// ===== PLAN ADHERENCE UI =====
 
-/**
- * Render streak badge on user card
- * @param {string} user - "Moe" or "Trish"
- * @param {number} zeroStreak - Number of zero days
- * @param {string|null} startDay - Day name when streak started
- */
+export function renderProgressBar(user, current, max) {
+    const textEl = document.getElementById("progress-text");
+    const fillEl = document.getElementById("progress-fill");
+    if (!textEl || !fillEl) return;
+
+    const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0;
+    const overLimit = current > max;
+
+    textEl.textContent = `${user}, you've had ${current}/${max} drinks this week`;
+
+    fillEl.style.width = overLimit ? "100%" : `${pct}%`;
+
+    fillEl.classList.remove("yellow", "red", "over");
+    if (overLimit) fillEl.classList.add("over");
+    else if (pct >= 80) fillEl.classList.add("red");
+    else if (pct >= 50) fillEl.classList.add("yellow");
+    // Default green styling from CSS
+}
+
 export function renderStreakBadge(user, zeroStreak, startDay) {
     const badgeId = user === "Moe" ? "streak-moe" : "streak-trish";
     const badge = document.getElementById(badgeId);
-
     if (!badge) return;
 
     if (zeroStreak > 0) {
-        if (zeroStreak === 1 && startDay) {
-            badge.textContent = `Zero 🍺 since ${startDay}`;
-        } else {
-            badge.textContent = `${zeroStreak} zero days 🍺`;
-        }
+        if (zeroStreak === 1 && startDay) badge.textContent = `Zero 🍺 since ${startDay}`;
+        else badge.textContent = `${zeroStreak} zero days 🍺`;
         badge.classList.add("active");
     } else {
         badge.textContent = "";
@@ -659,15 +655,9 @@ export function renderStreakBadge(user, zeroStreak, startDay) {
     }
 }
 
-/**
- * Render trend arrow on user card
- * @param {string} user - "Moe" or "Trish"
- * @param {number|null} percentChange - Positive = drinking more, negative = less
- */
 export function renderTrendArrow(user, percentChange) {
     const arrowId = user === "Moe" ? "trend-moe" : "trend-trish";
     const arrow = document.getElementById(arrowId);
-
     if (!arrow) return;
 
     arrow.classList.remove("up", "down", "neutral");
@@ -686,13 +676,23 @@ export function renderTrendArrow(user, percentChange) {
     }
 }
 
-/**
- * Show a toast notification for buddy milestones.
- * @param {string} partner - Partner's name ("Moe" or "Trish")
- * @param {number} zeroStreak - Partner's zero day streak
- */
+// Keep both: status (persistent) + toast (milestone)
+export function renderBuddyStatus(partner, partnerStreak) {
+    const statusEl = document.getElementById("buddy-status");
+    const textEl = document.getElementById("buddy-text");
+    if (!statusEl || !textEl) return;
+
+    if (partnerStreak >= 1) {
+        const emoji = partner === "Moe" ? "🐻" : "🐱";
+        textEl.textContent = `${emoji} ${partner}: ${partnerStreak} zero days 💪`;
+        statusEl.classList.remove("hidden");
+    } else {
+        statusEl.classList.add("hidden");
+    }
+}
+
 export function showBuddyMilestoneToast(partner, zeroStreak) {
-    if (zeroStreak < 3) return; // Only show for 3+ day streaks
+    if (zeroStreak < 3) return;
 
     const toast = document.createElement("div");
     toast.className = "toast buddy-milestone-toast";
@@ -702,10 +702,8 @@ export function showBuddyMilestoneToast(partner, zeroStreak) {
 
     document.body.appendChild(toast);
 
-    // Animate in
     setTimeout(() => toast.classList.add("show"), 10);
 
-    // Animate out and remove
     setTimeout(() => {
         toast.classList.remove("show");
         toast.classList.add("hide");
@@ -713,20 +711,12 @@ export function showBuddyMilestoneToast(partner, zeroStreak) {
     }, 5000);
 }
 
-/**
- * Show weekly check-in modal
- * @param {object} stats - { total, plan, onTrack, thisWeekTotal, change }
- * @param {object} partnerInfo - { partner, zeroStreak }
- * @param {string} user - Current user
- */
 export function showWeeklyCheckInModal(stats, partnerInfo, user) {
     const modal = document.getElementById("weekly-checkin-modal");
     const statsEl = document.getElementById("checkin-stats");
     const buddyEl = document.getElementById("checkin-buddy");
-
     if (!modal || !statsEl) return;
 
-    // Build stats HTML
     const statusEmoji = stats.onTrack ? "🎉" : "📈";
     const statusText = stats.onTrack
         ? `On track! ${stats.total}/${stats.plan}`
@@ -742,7 +732,7 @@ export function showWeeklyCheckInModal(stats, partnerInfo, user) {
     statsEl.innerHTML = `
         <div class="checkin-stat-row">
             <span class="checkin-stat-label">Last week total</span>
-            <span class="checkin-stat-value ${stats.onTrack ? 'good' : 'bad'}">${stats.total}</span>
+            <span class="checkin-stat-value ${stats.onTrack ? "good" : "bad"}">${stats.total}</span>
         </div>
         <div class="checkin-stat-row">
             <span class="checkin-stat-label">Weekly target</span>
@@ -750,13 +740,12 @@ export function showWeeklyCheckInModal(stats, partnerInfo, user) {
         </div>
         <div class="checkin-stat-row">
             <span class="checkin-stat-label">Status</span>
-            <span class="checkin-stat-value ${stats.onTrack ? 'good' : 'bad'}">${statusEmoji} ${statusText}</span>
+            <span class="checkin-stat-value ${stats.onTrack ? "good" : "bad"}">${statusEmoji} ${statusText}</span>
         </div>
-        ${changeText ? `<div class="checkin-stat-row"><span class="checkin-stat-label">Trend</span>${changeText}</div>` : ''}
+        ${changeText ? `<div class="checkin-stat-row"><span class="checkin-stat-label">Trend</span>${changeText}</div>` : ""}
     `;
 
-    // Partner info (Toast handled separately now, but keeping modal summary friendly)
-    if (partnerInfo && partnerInfo.zeroStreak >= 3 && buddyEl) {
+    if (partnerInfo && partnerInfo.zeroStreak >= 1 && buddyEl) {
         const emoji = partnerInfo.partner === "Moe" ? "🐻" : "🐱";
         buddyEl.innerHTML = `${emoji} ${partnerInfo.partner} has a ${partnerInfo.zeroStreak} day streak!`;
         buddyEl.classList.remove("hidden");
@@ -768,9 +757,6 @@ export function showWeeklyCheckInModal(stats, partnerInfo, user) {
     modal.setAttribute("aria-hidden", "false");
 }
 
-/**
- * Hide weekly check-in modal
- */
 export function hideWeeklyCheckInModal() {
     const modal = document.getElementById("weekly-checkin-modal");
     if (!modal) return;
@@ -778,37 +764,22 @@ export function hideWeeklyCheckInModal() {
     modal.setAttribute("aria-hidden", "true");
 }
 
-/**
- * Show celebration with confetti and optional badge
- * @param {string} type - "streak" | "week" | "milestone"
- * @param {string} message - Message to display
- */
 export function showCelebration(type, message) {
-    // Trigger confetti
     triggerConfetti();
 
-    // Show celebration badge
     const badge = document.createElement("div");
     badge.className = "celebration-badge";
     badge.textContent = message;
     document.body.appendChild(badge);
 
-    // Remove after animation
     setTimeout(() => badge.remove(), 2500);
 }
 
-/**
- * Sync commitment UI in settings modal
- * @param {string} user - Current user
- * @param {{ why: string, setDate: string|null }} commitment
- */
 export function syncCommitmentUI(user, commitment) {
     const whyInput = document.getElementById("commitment-why");
     const dateEl = document.getElementById("commitment-date");
 
-    if (whyInput) {
-        whyInput.value = commitment?.why || "";
-    }
+    if (whyInput) whyInput.value = commitment?.why || "";
 
     if (dateEl) {
         if (commitment?.setDate) {
@@ -820,4 +791,3 @@ export function syncCommitmentUI(user, commitment) {
         }
     }
 }
-

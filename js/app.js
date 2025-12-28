@@ -18,7 +18,7 @@ import {
     renderChart, renderHistoryChart, shakeCard, showKanpaiPop, openDrinkTypeModal,
     closeDrinkTypeModal, openAdjustTodayModal, closeAdjustTodayModal, renderAdjustTodayUI,
     attachLongPress, triggerConfetti,
-    renderStreakBadge, renderTrendArrow, showBuddyMilestoneToast,
+    renderProgressBar, renderStreakBadge, renderTrendArrow, renderBuddyStatus,
     showWeeklyCheckInModal, hideWeeklyCheckInModal, showCelebration, syncCommitmentUI
 } from "./ui.js";
 
@@ -229,6 +229,16 @@ function calculate() {
     updatePlusButtonIcon("Moe");
     updatePlusButtonIcon("Trish");
 
+    const selectedUser = getSelectedUser();
+
+    // ===== NEW: Progress Bar =====
+    if (selectedUser) {
+        const weekProg = getWeekProgress(selectedUser, getWeeklyPlan(selectedUser), state.eventsCache, "this");
+        if (weekProg) {
+            renderProgressBar(selectedUser, weekProg.total, weekProg.plan);
+        }
+    }
+
     // ===== NEW: Streak Badges for both users =====
     for (const user of ["Moe", "Trish"]) {
         const streak = getZeroStreakDays(user, state.eventsCache);
@@ -242,22 +252,11 @@ function calculate() {
         renderTrendArrow(user, trend);
     }
 
-    // ===== NEW: Buddy Milestone Check (Toast Only) =====
-    // Show only if viewing tracker and partner has a notable streak
-    if (el.viewTracker && !el.viewTracker.classList.contains("hidden") && selectedUser) {
+    // ===== NEW: Buddy Accountability =====
+    if (selectedUser) {
         const partnerInfo = getPartnerStreakInfo(selectedUser, state.eventsCache);
-        // Only show for 3, 7, 14, 30 days and ensure we haven't shown it recently (simple session check)
-        const notableStreaks = [3, 7, 14, 30, 50, 69, 100];
-        if (notableStreaks.includes(partnerInfo.zeroStreak)) {
-            // Check if we already showed this specific milestone this session
-            const sessionKey = `toast_shown_${partnerInfo.partner}_${partnerInfo.zeroStreak}`;
-            if (!state[sessionKey]) {
-                showBuddyMilestoneToast(partnerInfo.partner, partnerInfo.zeroStreak);
-                state[sessionKey] = true;
-            }
-        }
+        renderBuddyStatus(partnerInfo.partner, partnerInfo.zeroStreak);
     }
-
 
     if (el.adjustTodayModal && !el.adjustTodayModal.classList.contains("hidden") && state.activeModalUser) {
         renderAdjustTodayUI();
@@ -402,14 +401,14 @@ const debouncedLogDrinkAction = debounce(logDrinkAction, 300);
 
 // Connection status UI update
 function updateConnectionStatusUI(connected) {
-    const statusEl = document.getElementById('connection-status');
-    const bannerEl = document.getElementById('offline-banner');
+    const statusEl = document.getElementById("connection-status");
+    const bannerEl = document.getElementById("offline-banner");
 
     if (statusEl) {
-        statusEl.classList.toggle('offline', !connected);
+        statusEl.classList.toggle("offline", !connected);
     }
     if (bannerEl) {
-        bannerEl.classList.toggle('visible', !connected);
+        bannerEl.classList.toggle("visible", !connected);
     }
 }
 
@@ -421,12 +420,12 @@ window.addEventListener("DOMContentLoaded", () => {
     initDOM();
     const domValidation = validateDOM();
     if (!domValidation.valid) {
-        showToast('App failed to load correctly. Please refresh.', 'error');
-        console.error('[App] Critical DOM elements missing:', domValidation.missing);
+        showToast("App failed to load correctly. Please refresh.", "error");
+        console.error("[App] Critical DOM elements missing:", domValidation.missing);
         // Continue anyway - partial functionality better than nothing
     }
     if (domValidation.warnings.length > 0) {
-        console.warn('[App] Some features may not work:', domValidation.warnings);
+        console.warn("[App] Some features may not work:", domValidation.warnings);
     }
 
     // Initialize Firebase connection monitoring
