@@ -257,14 +257,15 @@ function calculate() {
     const start30 = todayStart - (30 - 1) * DAY_MS;
 
     const stats = {
-        moe: { day: 0, week: 0, month: 0, all: 0 },
-        trish: { day: 0, week: 0, month: 0, all: 0 }
+        moe: { day: 0, week: 0, month: 0, all: 0, firstTs: Infinity },
+        trish: { day: 0, week: 0, month: 0, all: 0, firstTs: Infinity }
     };
 
     for (const e of state.eventsCache) {
         const u = e.user?.toLowerCase();
         if (!u || !stats[u]) continue;
 
+        if (e.ts < stats[u].firstTs) stats[u].firstTs = e.ts;
         stats[u].all += e.v;
         if (e.ts >= start30) stats[u].month += e.v;
         if (e.ts >= start7) stats[u].week += e.v;
@@ -282,6 +283,13 @@ function calculate() {
     updateText("stat-month-trish", stats.trish.month);
     updateText("stat-all-moe", stats.moe.all);
     updateText("stat-all-trish", stats.trish.all);
+
+    // Calculate Week Avgs
+    const moeWeeks = stats.moe.firstTs === Infinity ? 1 : Math.max(1, (now.getTime() - stats.moe.firstTs) / (DAY_MS * 7));
+    const trishWeeks = stats.trish.firstTs === Infinity ? 1 : Math.max(1, (now.getTime() - stats.trish.firstTs) / (DAY_MS * 7));
+
+    updateText("stat-avg-moe", (stats.moe.all / moeWeeks).toFixed(1));
+    updateText("stat-avg-trish", (stats.trish.all / trishWeeks).toFixed(1));
 
     applySelectedUserUI();
 
