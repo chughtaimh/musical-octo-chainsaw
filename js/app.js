@@ -464,9 +464,9 @@ function login() {
 
 // --- Initialization ---
 
-// Reduced debouncing for faster interaction
-const debouncedLogDrinkAction = debounce(logDrinkAction, 80);
-const debouncedMinusAction = debounce(logDrinkAction, 150);
+// Reduced debouncing for faster interaction but safe enough to prevent accidental doubles
+const debouncedLogDrinkAction = debounce(logDrinkAction, 200);
+const debouncedMinusAction = debounce(logDrinkAction, 200);
 
 // Connection status UI update
 function updateConnectionStatusUI(connected) {
@@ -637,7 +637,16 @@ window.addEventListener("DOMContentLoaded", () => {
 
         // Merge optimistic entries back in (they will be overwritten once the real ones arrive from Firebase)
         if (optimisticEntries.length > 0) {
-            state.eventsCache.push(...optimisticEntries);
+            const syncedSignatureSet = new Set(
+                state.eventsCache.map(e => `${e.ts}_${e.user}_${e.v}_${e.drinkType}`)
+            );
+
+            for (const opt of optimisticEntries) {
+                const sig = `${opt.ts}_${opt.user}_${opt.v}_${opt.drinkType}`;
+                if (!syncedSignatureSet.has(sig)) {
+                    state.eventsCache.push(opt);
+                }
+            }
             state.eventsCache.sort((a, b) => a.ts - b.ts);
         }
 
