@@ -1011,7 +1011,6 @@ input:focus {
 
 /* Skeleton loading pulse */
 @keyframes pulse {
-
   0%,
   100% {
     opacity: 1;
@@ -1035,7 +1034,6 @@ input:focus {
 
 /* Streak fire animation */
 @keyframes fireFlicker {
-
   0%,
   100% {
     transform: scale(1) rotate(-2deg);
@@ -1219,7 +1217,6 @@ input:focus {
 }
 
 @keyframes connectionPulse {
-
   0%,
   100% {
     background-position: 0% 50%;
@@ -1322,7 +1319,6 @@ input:focus {
 /* ===== SHAKE ANIMATION FOR ERRORS ===== */
 
 @keyframes shakeError {
-
   0%,
   100% {
     transform: translateX(0);
