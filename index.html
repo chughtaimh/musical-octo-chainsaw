@@ -127,9 +127,13 @@
       <div style="text-align:center; margin-bottom:20px; color:#aaa; font-weight:bold;">Today</div>
 
       <div class="user-card moe" id="card-moe">
-        <div class="avatar">🐻</div>
+        <div class="card-header">
+          <div class="avatar">🐻</div>
+          <span class="trend-arrow" id="trend-moe"></span>
+        </div>
         <div class="user-name">Moe</div>
         <div class="count" id="c-moe">...</div>
+        <div class="streak-badge" id="streak-moe"></div>
         <div class="controls">
           <button id="btn-moe-minus" class="btn-round" type="button" aria-label="Moe minus">−</button>
           <button id="btn-moe-plus" class="btn-round plus" type="button" aria-label="Moe plus">🍺</button>
@@ -137,9 +141,13 @@
       </div>
 
       <div class="user-card trish" id="card-trish">
-        <div class="avatar">🐱</div>
+        <div class="card-header">
+          <div class="avatar">🐱</div>
+          <span class="trend-arrow" id="trend-trish"></span>
+        </div>
         <div class="user-name">Trish</div>
         <div class="count" id="c-trish">...</div>
+        <div class="streak-badge" id="streak-trish"></div>
         <div class="controls">
           <button id="btn-trish-minus" class="btn-round" type="button" aria-label="Trish minus">−</button>
           <button id="btn-trish-plus" class="btn-round plus" type="button" aria-label="Trish plus">🍹</button>
@@ -264,6 +272,13 @@
         </div>
       </div>
 
+      <div class="settings-section">
+        <p class="settings-label">🤝 Commitment</p>
+        <p class="settings-help">Why are you tracking? Having a "why" helps you stay motivated.</p>
+        <input id="commitment-why" type="text" placeholder="e.g., Health goals, saving money, feeling better..." />
+        <div id="commitment-date" class="plan-chip">Commitment not set yet</div>
+      </div>
+
       <div class="settings-actions">
         <button id="btn-settings-cancel" class="btn-secondary" type="button">Close</button>
         <button id="btn-settings-save" class="btn-primary" type="button">Save</button>
@@ -303,6 +318,22 @@
       <div id="adjusttoday-rows" class="adjust-rows">
         <!-- JS renders rows -->
       </div>
+    </div>
+  </div>
+
+  <!-- Weekly Check-In Modal -->
+  <div id="weekly-checkin-modal" class="hidden" aria-hidden="true">
+    <div class="checkin-backdrop"></div>
+    <div class="checkin-card" role="dialog" aria-modal="true" aria-labelledby="checkin-title">
+      <div style="font-size: 2.5rem; margin-bottom: 10px;">📊</div>
+      <h2 id="checkin-title">Weekly Check-In</h2>
+      <div id="checkin-stats" class="checkin-stats">
+        <!-- JS renders stats -->
+      </div>
+      <div id="checkin-buddy" class="checkin-buddy hidden">
+        <!-- Partner status -->
+      </div>
+      <button id="btn-checkin-close" class="btn-main" type="button">Got it!</button>
     </div>
   </div>
 

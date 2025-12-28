@@ -7,7 +7,9 @@ import {
 } from "./utils.js";
 import {
     rebuildEventsCache, getWeekProgress, parseIntent, parseUsers,
-    resolveTimeRange, aggregate, daysTouchedByRange, getZeroStreakDays
+    resolveTimeRange, aggregate, daysTouchedByRange, getZeroStreakDays,
+    getWeeklyTrend, getPartnerStreakInfo, getLastWeekSummary, shouldShowWeeklyCheckIn,
+    getZeroStreakStartDay
 } from "./logic.js";
 import {
     el, initDOM, updateText, switchTab, getSelectedUser, applySelectedUserUI,
@@ -15,7 +17,9 @@ import {
     syncSettingsUIFromState, setQueryResult, destroyQueryChart, renderMiniDailyBarChart,
     renderChart, renderHistoryChart, shakeCard, showKanpaiPop, openDrinkTypeModal,
     closeDrinkTypeModal, openAdjustTodayModal, closeAdjustTodayModal, renderAdjustTodayUI,
-    attachLongPress
+    attachLongPress, triggerConfetti,
+    renderStreakBadge, renderTrendArrow, showBuddyMilestoneToast,
+    showWeeklyCheckInModal, hideWeeklyCheckInModal, showCelebration, syncCommitmentUI
 } from "./ui.js";
 
 // Reliability imports
@@ -224,6 +228,36 @@ function calculate() {
 
     updatePlusButtonIcon("Moe");
     updatePlusButtonIcon("Trish");
+
+    // ===== NEW: Streak Badges for both users =====
+    for (const user of ["Moe", "Trish"]) {
+        const streak = getZeroStreakDays(user, state.eventsCache);
+        const startDay = getZeroStreakStartDay(user, state.eventsCache);
+        renderStreakBadge(user, streak, startDay);
+    }
+
+    // ===== NEW: Trend Arrows for both users =====
+    for (const user of ["Moe", "Trish"]) {
+        const trend = getWeeklyTrend(user, getWeeklyPlan(user), state.eventsCache);
+        renderTrendArrow(user, trend);
+    }
+
+    // ===== NEW: Buddy Milestone Check (Toast Only) =====
+    // Show only if viewing tracker and partner has a notable streak
+    if (el.viewTracker && !el.viewTracker.classList.contains("hidden") && selectedUser) {
+        const partnerInfo = getPartnerStreakInfo(selectedUser, state.eventsCache);
+        // Only show for 3, 7, 14, 30 days and ensure we haven't shown it recently (simple session check)
+        const notableStreaks = [3, 7, 14, 30, 50, 69, 100];
+        if (notableStreaks.includes(partnerInfo.zeroStreak)) {
+            // Check if we already showed this specific milestone this session
+            const sessionKey = `toast_shown_${partnerInfo.partner}_${partnerInfo.zeroStreak}`;
+            if (!state[sessionKey]) {
+                showBuddyMilestoneToast(partnerInfo.partner, partnerInfo.zeroStreak);
+                state[sessionKey] = true;
+            }
+        }
+    }
+
 
     if (el.adjustTodayModal && !el.adjustTodayModal.classList.contains("hidden") && state.activeModalUser) {
         renderAdjustTodayUI();

@@ -631,3 +631,193 @@ export function attachLongPress({ element, onTap, onLongPress, ms = 450 }) {
         }
     }, true);
 }
+
+// ===== NEW UI FUNCTIONS FOR PLAN ADHERENCE FEATURES =====
+
+/**
+ * Render streak badge on user card
+ * @param {string} user - "Moe" or "Trish"
+ * @param {number} zeroStreak - Number of zero days
+ * @param {string|null} startDay - Day name when streak started
+ */
+export function renderStreakBadge(user, zeroStreak, startDay) {
+    const badgeId = user === "Moe" ? "streak-moe" : "streak-trish";
+    const badge = document.getElementById(badgeId);
+
+    if (!badge) return;
+
+    if (zeroStreak > 0) {
+        if (zeroStreak === 1 && startDay) {
+            badge.textContent = `Zero 🍺 since ${startDay}`;
+        } else {
+            badge.textContent = `${zeroStreak} zero days 🍺`;
+        }
+        badge.classList.add("active");
+    } else {
+        badge.textContent = "";
+        badge.classList.remove("active");
+    }
+}
+
+/**
+ * Render trend arrow on user card
+ * @param {string} user - "Moe" or "Trish"
+ * @param {number|null} percentChange - Positive = drinking more, negative = less
+ */
+export function renderTrendArrow(user, percentChange) {
+    const arrowId = user === "Moe" ? "trend-moe" : "trend-trish";
+    const arrow = document.getElementById(arrowId);
+
+    if (!arrow) return;
+
+    arrow.classList.remove("up", "down", "neutral");
+
+    if (percentChange === null || percentChange === 0) {
+        arrow.textContent = "";
+        return;
+    }
+
+    if (percentChange > 0) {
+        arrow.textContent = `↑${Math.abs(percentChange)}%`;
+        arrow.classList.add("up");
+    } else {
+        arrow.textContent = `↓${Math.abs(percentChange)}%`;
+        arrow.classList.add("down");
+    }
+}
+
+/**
+ * Show a toast notification for buddy milestones.
+ * @param {string} partner - Partner's name ("Moe" or "Trish")
+ * @param {number} zeroStreak - Partner's zero day streak
+ */
+export function showBuddyMilestoneToast(partner, zeroStreak) {
+    if (zeroStreak < 3) return; // Only show for 3+ day streaks
+
+    const toast = document.createElement("div");
+    toast.className = "toast buddy-milestone-toast";
+
+    const emoji = partner === "Moe" ? "🐻" : "🐱";
+    toast.innerHTML = `${emoji} ${partner} is on a ${zeroStreak} day zero streak! 💪`;
+
+    document.body.appendChild(toast);
+
+    // Animate in
+    setTimeout(() => toast.classList.add("show"), 10);
+
+    // Animate out and remove
+    setTimeout(() => {
+        toast.classList.remove("show");
+        toast.classList.add("hide");
+        toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+    }, 5000);
+}
+
+/**
+ * Show weekly check-in modal
+ * @param {object} stats - { total, plan, onTrack, thisWeekTotal, change }
+ * @param {object} partnerInfo - { partner, zeroStreak }
+ * @param {string} user - Current user
+ */
+export function showWeeklyCheckInModal(stats, partnerInfo, user) {
+    const modal = document.getElementById("weekly-checkin-modal");
+    const statsEl = document.getElementById("checkin-stats");
+    const buddyEl = document.getElementById("checkin-buddy");
+
+    if (!modal || !statsEl) return;
+
+    // Build stats HTML
+    const statusEmoji = stats.onTrack ? "🎉" : "📈";
+    const statusText = stats.onTrack
+        ? `On track! ${stats.total}/${stats.plan}`
+        : `Over by ${stats.total - stats.plan}`;
+
+    let changeText = "";
+    if (stats.change > 0) {
+        changeText = `<span class="checkin-stat-value good">↓${stats.change} less than this week</span>`;
+    } else if (stats.change < 0) {
+        changeText = `<span class="checkin-stat-value bad">↑${Math.abs(stats.change)} more than this week</span>`;
+    }
+
+    statsEl.innerHTML = `
+        <div class="checkin-stat-row">
+            <span class="checkin-stat-label">Last week total</span>
+            <span class="checkin-stat-value ${stats.onTrack ? 'good' : 'bad'}">${stats.total}</span>
+        </div>
+        <div class="checkin-stat-row">
+            <span class="checkin-stat-label">Weekly target</span>
+            <span class="checkin-stat-value">${stats.plan}</span>
+        </div>
+        <div class="checkin-stat-row">
+            <span class="checkin-stat-label">Status</span>
+            <span class="checkin-stat-value ${stats.onTrack ? 'good' : 'bad'}">${statusEmoji} ${statusText}</span>
+        </div>
+        ${changeText ? `<div class="checkin-stat-row"><span class="checkin-stat-label">Trend</span>${changeText}</div>` : ''}
+    `;
+
+    // Partner info (Toast handled separately now, but keeping modal summary friendly)
+    if (partnerInfo && partnerInfo.zeroStreak >= 3 && buddyEl) {
+        const emoji = partnerInfo.partner === "Moe" ? "🐻" : "🐱";
+        buddyEl.innerHTML = `${emoji} ${partnerInfo.partner} has a ${partnerInfo.zeroStreak} day streak!`;
+        buddyEl.classList.remove("hidden");
+    } else if (buddyEl) {
+        buddyEl.classList.add("hidden");
+    }
+
+    modal.classList.remove("hidden");
+    modal.setAttribute("aria-hidden", "false");
+}
+
+/**
+ * Hide weekly check-in modal
+ */
+export function hideWeeklyCheckInModal() {
+    const modal = document.getElementById("weekly-checkin-modal");
+    if (!modal) return;
+    modal.classList.add("hidden");
+    modal.setAttribute("aria-hidden", "true");
+}
+
+/**
+ * Show celebration with confetti and optional badge
+ * @param {string} type - "streak" | "week" | "milestone"
+ * @param {string} message - Message to display
+ */
+export function showCelebration(type, message) {
+    // Trigger confetti
+    triggerConfetti();
+
+    // Show celebration badge
+    const badge = document.createElement("div");
+    badge.className = "celebration-badge";
+    badge.textContent = message;
+    document.body.appendChild(badge);
+
+    // Remove after animation
+    setTimeout(() => badge.remove(), 2500);
+}
+
+/**
+ * Sync commitment UI in settings modal
+ * @param {string} user - Current user
+ * @param {{ why: string, setDate: string|null }} commitment
+ */
+export function syncCommitmentUI(user, commitment) {
+    const whyInput = document.getElementById("commitment-why");
+    const dateEl = document.getElementById("commitment-date");
+
+    if (whyInput) {
+        whyInput.value = commitment?.why || "";
+    }
+
+    if (dateEl) {
+        if (commitment?.setDate) {
+            const date = new Date(commitment.setDate);
+            const formatted = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            dateEl.textContent = `Committed on: ${formatted}`;
+        } else {
+            dateEl.textContent = "Commitment not set yet";
+        }
+    }
+}
+
