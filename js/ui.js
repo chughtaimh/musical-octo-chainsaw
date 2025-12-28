@@ -621,24 +621,7 @@ export function attachLongPress({ element, onTap, onLongPress, ms = 450 }) {
 
 // ===== PLAN ADHERENCE UI =====
 
-export function renderProgressBar(user, current, max) {
-    const textEl = document.getElementById("progress-text");
-    const fillEl = document.getElementById("progress-fill");
-    if (!textEl || !fillEl) return;
-
-    const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0;
-    const overLimit = current > max;
-
-    textEl.textContent = `${user}, you've had ${current}/${max} drinks this week`;
-
-    fillEl.style.width = overLimit ? "100%" : `${pct}%`;
-
-    fillEl.classList.remove("yellow", "red", "over");
-    if (overLimit) fillEl.classList.add("over");
-    else if (pct >= 80) fillEl.classList.add("red");
-    else if (pct >= 50) fillEl.classList.add("yellow");
-    // Default green styling from CSS
-}
+// DELETED: renderProgressBar used to be here
 
 export function renderStreakBadge(user, zeroStreak, startDay) {
     const badgeId = user === "Moe" ? "streak-moe" : "streak-trish";
@@ -677,19 +660,7 @@ export function renderTrendArrow(user, percentChange) {
 }
 
 // Keep both: status (persistent) + toast (milestone)
-export function renderBuddyStatus(partner, partnerStreak) {
-    const statusEl = document.getElementById("buddy-status");
-    const textEl = document.getElementById("buddy-text");
-    if (!statusEl || !textEl) return;
-
-    if (partnerStreak >= 1) {
-        const emoji = partner === "Moe" ? "🐻" : "🐱";
-        textEl.textContent = `${emoji} ${partner}: ${partnerStreak} zero days 💪`;
-        statusEl.classList.remove("hidden");
-    } else {
-        statusEl.classList.add("hidden");
-    }
-}
+// DELETED: renderBuddyStatus used to be here
 
 export function showBuddyMilestoneToast(partner, zeroStreak) {
     if (zeroStreak < 3) return;
@@ -698,17 +669,27 @@ export function showBuddyMilestoneToast(partner, zeroStreak) {
     toast.className = "toast buddy-milestone-toast";
 
     const emoji = partner === "Moe" ? "🐻" : "🐱";
-    toast.innerHTML = `${emoji} ${partner} is on a ${zeroStreak} day zero streak! 💪`;
+    // Made interactive as requested
+    toast.innerHTML = `${emoji} ${partner} is on a ${zeroStreak} day zero streak! 💪<br><small>Tap to cheer!</small>`;
+
+    // Interactive cheer
+    toast.addEventListener("click", () => {
+        showKanpaiPop(partner);
+        triggerConfetti();
+        toast.classList.remove("show"); // Dismiss on click
+    });
 
     document.body.appendChild(toast);
 
     setTimeout(() => toast.classList.add("show"), 10);
 
     setTimeout(() => {
-        toast.classList.remove("show");
-        toast.classList.add("hide");
-        toast.addEventListener("transitionend", () => toast.remove(), { once: true });
-    }, 5000);
+        if (toast.parentElement) {
+            toast.classList.remove("show");
+            toast.classList.add("hide");
+            toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+        }
+    }, 6000); // Slightly longer for reading
 }
 
 export function showWeeklyCheckInModal(stats, partnerInfo, user) {

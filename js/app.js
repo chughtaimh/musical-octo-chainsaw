@@ -18,8 +18,9 @@ import {
     renderChart, renderHistoryChart, shakeCard, showKanpaiPop, openDrinkTypeModal,
     closeDrinkTypeModal, openAdjustTodayModal, closeAdjustTodayModal, renderAdjustTodayUI,
     attachLongPress, triggerConfetti,
-    renderProgressBar, renderStreakBadge, renderTrendArrow, renderBuddyStatus,
-    showWeeklyCheckInModal, hideWeeklyCheckInModal, showCelebration, syncCommitmentUI
+    renderStreakBadge, renderTrendArrow,
+    showWeeklyCheckInModal, hideWeeklyCheckInModal, showCelebration, syncCommitmentUI,
+    showBuddyMilestoneToast
 } from "./ui.js";
 
 // Reliability imports
@@ -232,12 +233,7 @@ function calculate() {
     const selectedUser = getSelectedUser();
 
     // ===== NEW: Progress Bar =====
-    if (selectedUser) {
-        const weekProg = getWeekProgress(selectedUser, getWeeklyPlan(selectedUser), state.eventsCache, "this");
-        if (weekProg) {
-            renderProgressBar(selectedUser, weekProg.total, weekProg.plan);
-        }
-    }
+    // DELETED: Persistent progress bar removed per user request
 
     // ===== NEW: Streak Badges for both users =====
     for (const user of ["Moe", "Trish"]) {
@@ -252,10 +248,24 @@ function calculate() {
         renderTrendArrow(user, trend);
     }
 
-    // ===== NEW: Buddy Accountability =====
+    // ===== NEW: Buddy Celebration Toast =====
     if (selectedUser) {
         const partnerInfo = getPartnerStreakInfo(selectedUser, state.eventsCache);
-        renderBuddyStatus(partnerInfo.partner, partnerInfo.zeroStreak);
+
+        // renderBuddyStatus(partnerInfo.partner, partnerInfo.zeroStreak); // DELETED
+
+        if (partnerInfo.zeroStreak >= 3) {
+            const key = `lastCelebratedStreak_${partnerInfo.partner}`;
+            const lastCeleb = safeParseInt(safeGetItem(key), 0);
+
+            if (partnerInfo.zeroStreak > lastCeleb) {
+                showBuddyMilestoneToast(partnerInfo.partner, partnerInfo.zeroStreak);
+                safeSetItem(key, String(partnerInfo.zeroStreak));
+            }
+        } else if (partnerInfo.zeroStreak === 0) {
+            // Reset if streak broken so we can celebrate again later
+            safeSetItem(`lastCelebratedStreak_${partnerInfo.partner}`, "0");
+        }
     }
 
     if (el.adjustTodayModal && !el.adjustTodayModal.classList.contains("hidden") && state.activeModalUser) {
