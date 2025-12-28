@@ -3,7 +3,7 @@
  * Reliable Firebase operations with retry logic, connection monitoring, and offline queue
  */
 
-import { db, historyRef, weeklyPlansRef, push, set, ref, onValue } from "./firebase-config.js";
+import { db, historyRef, weeklyPlansRef, commitmentsRef, push, set, ref, onValue } from "./firebase-config.js";
 import { showToast, safeAsync } from "./error-handler.js";
 
 // ============================================================
@@ -420,5 +420,29 @@ export function waitForFirebase(timeout = 10000) {
             }
         };
         check();
+    });
+}
+
+/**
+ * Wrapper for setting commitment specifically
+ * @param {string} user - User name ('Moe' or 'Trish')
+ * @param {Object} commitment - Commitment object { why: string, setDate: number }
+ * @returns {Promise<{success: boolean, queued?: boolean}>}
+ */
+export async function setCommitment(user, commitment) {
+    if (!['Moe', 'Trish'].includes(user)) {
+        console.error('[Firebase] Invalid user for commitment:', user);
+        return { success: false };
+    }
+
+    if (!commitment || typeof commitment.why !== 'string') {
+        console.error('[Firebase] Invalid commitment data:', commitment);
+        return { success: false };
+    }
+
+    return reliableSet(`commitments/${user}`, commitment, {
+        showSuccessToast: true,
+        showErrorToast: true,
+        maxRetries: 3
     });
 }

@@ -17,5 +17,6 @@ const db = getDatabase(app);
 
 const historyRef = ref(db, "history");
 const weeklyPlansRef = ref(db, "weeklyPlans");
+const commitmentsRef = ref(db, "commitments");
 
-export { app, db, historyRef, weeklyPlansRef, push, set, ref, onValue };
+export { app, db, historyRef, weeklyPlansRef, commitmentsRef, push, set, ref, onValue };

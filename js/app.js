@@ -1,4 +1,4 @@
-import { db, historyRef, weeklyPlansRef, push, set, ref, onValue } from "./firebase-config.js";
+import { db, historyRef, weeklyPlansRef, commitmentsRef, push, set, ref, onValue } from "./firebase-config.js";
 import { LS, DAY_MS, VALID_DRINK_TYPES } from "./constants.js";
 import { state } from "./state.js";
 import {
@@ -33,7 +33,8 @@ import {
 } from "./validation.js";
 import {
     initConnectionMonitor, onConnectionChange, isFirebaseConnected,
-    pushDrinkLog, setWeeklyPlan as setWeeklyPlanFirebase, markFirebaseReady
+    pushDrinkLog, setWeeklyPlan as setWeeklyPlanFirebase, markFirebaseReady,
+    setCommitment
 } from "./firebase-ops.js";
 
 function getWeeklyPlan(user) {
@@ -557,6 +558,9 @@ window.addEventListener("DOMContentLoaded", () => {
                 state.commitments[u] = newCommitment;
                 const key = u === "Trish" ? LS.commitmentTrish : LS.commitmentMoe;
                 safeSetItem(key, JSON.stringify(newCommitment));
+
+                // Persist to Firebase
+                setCommitment(u, newCommitment);
             }
         }
 
@@ -673,6 +677,19 @@ window.addEventListener("DOMContentLoaded", () => {
         }
         // Mark Firebase as ready after first data sync
         markFirebaseReady();
+    });
+
+    // New Commitment Listener
+    onValue(commitmentsRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        for (const u of ["Moe", "Trish"]) {
+            if (data[u]) {
+                state.commitments[u] = data[u];
+                const key = u === "Trish" ? LS.commitmentTrish : LS.commitmentMoe;
+                safeSetItem(key, JSON.stringify(data[u]));
+            }
+        }
+        syncSettingsUIFromState();
     });
 
     // Auto Login Check
