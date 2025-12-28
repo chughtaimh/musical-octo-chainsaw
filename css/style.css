@@ -1350,3 +1350,256 @@ input:focus {
   pointer-events: none;
   opacity: 0.6;
 }
+
+/* ===== WEEKLY PROGRESS BAR ===== */
+
+.progress-container {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+
+.progress-text {
+  text-align: center;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 12px;
+  font-size: 1rem;
+}
+
+.progress-track {
+  height: 12px;
+  background: #f0f0f0;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s;
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+  min-width: 0;
+}
+
+.progress-fill.yellow {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.progress-fill.red {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+.progress-fill.over {
+  background: linear-gradient(90deg, #dc2626, #ef4444);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* ===== CARD HEADER (Avatar + Trend) ===== */
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+}
+
+/* ===== TREND ARROWS ===== */
+
+.trend-arrow {
+  font-size: 0.9rem;
+  font-weight: 900;
+  padding: 4px 8px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.trend-arrow.down {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+
+.trend-arrow.up {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.trend-arrow.neutral {
+  background: rgba(148, 163, 184, 0.15);
+  color: #64748b;
+}
+
+/* ===== STREAK BADGE ===== */
+
+.streak-badge {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #888;
+  margin-top: 4px;
+  padding: 6px 12px;
+  background: rgba(34, 197, 94, 0.08);
+  border-radius: 12px;
+  display: inline-block;
+}
+
+.streak-badge.active {
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+
+.streak-badge:empty {
+  display: none;
+}
+
+/* ===== BUDDY STATUS ===== */
+
+.buddy-status {
+  background: linear-gradient(135deg, rgba(106, 183, 255, 0.1), rgba(255, 141, 161, 0.1));
+  border-radius: 16px;
+  padding: 14px 18px;
+  margin-top: 20px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--text);
+  border: 2px dashed rgba(106, 183, 255, 0.3);
+  animation: fadeSlideIn 0.3s ease-out;
+}
+
+/* ===== WEEKLY CHECK-IN MODAL ===== */
+
+#weekly-checkin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  box-sizing: border-box;
+}
+
+.checkin-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.checkin-card {
+  position: relative;
+  width: min(480px, 92vw);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 26px;
+  box-shadow: var(--shadow-xl);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.checkin-card h2 {
+  margin: 0 0 16px 0;
+  color: var(--text);
+  font-size: 1.4rem;
+}
+
+.checkin-stats {
+  background: #f9f9f9;
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.checkin-stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 2px dashed #eee;
+  font-weight: 700;
+}
+
+.checkin-stat-row:last-child {
+  border-bottom: none;
+}
+
+.checkin-stat-label {
+  color: #888;
+}
+
+.checkin-stat-value {
+  color: var(--text);
+  font-weight: 900;
+}
+
+.checkin-stat-value.good {
+  color: #16a34a;
+}
+
+.checkin-stat-value.bad {
+  color: #dc2626;
+}
+
+.checkin-buddy {
+  background: linear-gradient(135deg, rgba(106, 183, 255, 0.1), rgba(255, 141, 161, 0.1));
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.checkin-card .btn-main {
+  margin-top: 8px;
+}
+
+/* ===== CELEBRATION STYLES ===== */
+
+.celebration-badge {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  background: linear-gradient(135deg, #ffd700, #ffed4a);
+  color: #92400e;
+  padding: 20px 30px;
+  border-radius: 20px;
+  font-size: 1.4rem;
+  font-weight: 900;
+  box-shadow: 0 10px 40px rgba(255, 215, 0, 0.4);
+  z-index: 10000;
+  animation: celebrationPop 2s ease-out forwards;
+  text-align: center;
+}
+
+@keyframes celebrationPop {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  80% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+  }
+}

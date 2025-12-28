@@ -751,30 +751,115 @@ export function buildTimeBucketsFromPerDay(perDayMap, range) {
 }
 
 export function getTodayCountsByType(user, eventsCache) {
-  // Helpers assumed imported or we re-import if needed...
-  // But this is appending to file. Imports are at top.
-  // We need startOfDayLocal which is imported at top.
-  
-  // Implementation
-  const todayStart = startOfDayLocal(Date.now());
-  const out = { beer: 0, wine: 0, cocktail: 0, other: 0, total: 0 };
+    // Helpers assumed imported or we re-import if needed...
+    // But this is appending to file. Imports are at top.
+    // We need startOfDayLocal which is imported at top.
 
-  for (const e of eventsCache) {
-    if (!e) continue;
-    if (e.user !== user) continue;
-    if (e.dayStart !== todayStart) continue;
+    // Implementation
+    const todayStart = startOfDayLocal(Date.now());
+    const out = { beer: 0, wine: 0, cocktail: 0, other: 0, total: 0 };
 
-    const dt = normalizeDrinkType(e.drinkType || "other");
-    out[dt] += e.v;
-    out.total += e.v;
-  }
+    for (const e of eventsCache) {
+        if (!e) continue;
+        if (e.user !== user) continue;
+        if (e.dayStart !== todayStart) continue;
 
-  // Clamp display safety
-  out.beer = Math.max(0, out.beer);
-  out.wine = Math.max(0, out.wine);
-  out.cocktail = Math.max(0, out.cocktail);
-  out.other = Math.max(0, out.other);
-  out.total = Math.max(0, out.total);
+        const dt = normalizeDrinkType(e.drinkType || "other");
+        out[dt] += e.v;
+        out.total += e.v;
+    }
 
-  return out;
+    // Clamp display safety
+    out.beer = Math.max(0, out.beer);
+    out.wine = Math.max(0, out.wine);
+    out.cocktail = Math.max(0, out.cocktail);
+    out.other = Math.max(0, out.other);
+    out.total = Math.max(0, out.total);
+
+    return out;
 }
+
+/**
+ * Calculate week-over-week trend for a user
+ * Returns percentage change (positive = drinking more, negative = drinking less)
+ */
+export function getWeeklyTrend(user, weeklyPlan, eventsCache) {
+    const thisWeek = getWeekProgress(user, weeklyPlan, eventsCache, "this");
+    const lastWeek = getWeekProgress(user, weeklyPlan, eventsCache, "last");
+
+    if (!thisWeek || !lastWeek) return null;
+    if (lastWeek.total === 0) return thisWeek.total > 0 ? 100 : 0;
+
+    const change = ((thisWeek.total - lastWeek.total) / lastWeek.total) * 100;
+    return Math.round(change);
+}
+
+/**
+ * Get partner's streak info for buddy accountability
+ * @param {string} user - Current user ("Moe" or "Trish")
+ * @param {Array} eventsCache - Events cache
+ * @returns {{ partner: string, zeroStreak: number }}
+ */
+export function getPartnerStreakInfo(user, eventsCache) {
+    const partner = user === "Moe" ? "Trish" : "Moe";
+    const zeroStreak = getZeroStreakDays(partner, eventsCache);
+    return { partner, zeroStreak };
+}
+
+/**
+ * Get last week summary for check-in modal
+ * @returns {{ total: number, plan: number, lastWeekTotal: number, change: number, onTrack: boolean }}
+ */
+export function getLastWeekSummary(user, weeklyPlan, eventsCache) {
+    const thisWeek = getWeekProgress(user, weeklyPlan, eventsCache, "this");
+    const lastWeek = getWeekProgress(user, weeklyPlan, eventsCache, "last");
+
+    if (!lastWeek) return null;
+
+    const change = thisWeek ? lastWeek.total - thisWeek.total : 0;
+
+    return {
+        total: lastWeek.total,
+        plan: lastWeek.plan,
+        onTrack: lastWeek.total <= lastWeek.plan,
+        thisWeekTotal: thisWeek?.total || 0,
+        change  // positive = improved (drinking less)
+    };
+}
+
+/**
+ * Check if we should show weekly check-in modal
+ * Shows on Sunday after 6 PM, once per week
+ * @param {Date} now - Current time
+ * @param {string|null} lastCheckInWeek - ISO week key of last check-in
+ * @returns {boolean}
+ */
+export function shouldShowWeeklyCheckIn(now, lastCheckInWeek) {
+    const day = now.getDay(); // 0 = Sunday
+    const hour = now.getHours();
+
+    // Only on Sunday after 6 PM
+    if (day !== 0 || hour < 18) return false;
+
+    // Check if already shown this week
+    const currentWeekKey = nyDayKeyFromTs(now.getTime());
+    if (lastCheckInWeek === currentWeekKey) return false;
+
+    return true;
+}
+
+/**
+ * Get the day name when zero streak started (for "Zero 🍺 since Monday")
+ * @returns {string|null} Day name or null if no streak
+ */
+export function getZeroStreakStartDay(user, eventsCache) {
+    const streak = getZeroStreakDays(user, eventsCache);
+    if (streak <= 0) return null;
+
+    const now = new Date();
+    const streakStartMs = now.getTime() - (streak * DAY_MS);
+    const startDate = new Date(streakStartMs);
+
+    return DOW_FULL[startDate.getDay()];
+}
+

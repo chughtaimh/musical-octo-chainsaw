@@ -4,7 +4,12 @@ export const LS = {
     weeklyPlanMoe: "weekly_plan_Moe",
     weeklyPlanTrish: "weekly_plan_Trish",
     lastDrinkTypeMoe: "last_drink_type_Moe",
-    lastDrinkTypeTrish: "last_drink_type_Trish"
+    lastDrinkTypeTrish: "last_drink_type_Trish",
+    // Commitment tracking
+    commitmentMoe: "commitment_Moe",
+    commitmentTrish: "commitment_Trish",
+    // Weekly check-in modal
+    lastWeeklyCheckIn: "last_weekly_checkin"
 };
 
 export const DEFAULT_WEEKLY_PLAN = 14;

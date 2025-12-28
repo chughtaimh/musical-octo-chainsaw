@@ -21,6 +21,13 @@ export const state = {
 
     // Local flags
     ensuredWeeklyPlansOnce: false,
+    weeklyCheckInShownThisWeek: false,
+
+    // Commitment data (loaded from localStorage)
+    commitments: {
+        Moe: { why: "", setDate: null },
+        Trish: { why: "", setDate: null }
+    },
 
     // UI state
     activeModalUser: null

@@ -7,7 +7,9 @@ import {
 } from "./utils.js";
 import {
     rebuildEventsCache, getWeekProgress, parseIntent, parseUsers,
-    resolveTimeRange, aggregate, daysTouchedByRange, getZeroStreakDays
+    resolveTimeRange, aggregate, daysTouchedByRange, getZeroStreakDays,
+    getWeeklyTrend, getPartnerStreakInfo, getLastWeekSummary, shouldShowWeeklyCheckIn,
+    getZeroStreakStartDay
 } from "./logic.js";
 import {
     el, initDOM, updateText, switchTab, getSelectedUser, applySelectedUserUI,
@@ -15,7 +17,9 @@ import {
     syncSettingsUIFromState, setQueryResult, destroyQueryChart, renderMiniDailyBarChart,
     renderChart, renderHistoryChart, shakeCard, showKanpaiPop, openDrinkTypeModal,
     closeDrinkTypeModal, openAdjustTodayModal, closeAdjustTodayModal, renderAdjustTodayUI,
-    attachLongPress
+    attachLongPress, triggerConfetti,
+    renderProgressBar, renderStreakBadge, renderTrendArrow, renderBuddyStatus,
+    showWeeklyCheckInModal, hideWeeklyCheckInModal, showCelebration, syncCommitmentUI
 } from "./ui.js";
 
 // Reliability imports
@@ -224,6 +228,34 @@ function calculate() {
 
     updatePlusButtonIcon("Moe");
     updatePlusButtonIcon("Trish");
+
+    // ===== NEW: Progress Bar =====
+    const selectedUser = getSelectedUser();
+    if (selectedUser) {
+        const weekProg = getWeekProgress(selectedUser, getWeeklyPlan(selectedUser), state.eventsCache, "this");
+        if (weekProg) {
+            renderProgressBar(selectedUser, weekProg.total, weekProg.plan);
+        }
+    }
+
+    // ===== NEW: Streak Badges for both users =====
+    for (const user of ["Moe", "Trish"]) {
+        const streak = getZeroStreakDays(user, state.eventsCache);
+        const startDay = getZeroStreakStartDay(user, state.eventsCache);
+        renderStreakBadge(user, streak, startDay);
+    }
+
+    // ===== NEW: Trend Arrows for both users =====
+    for (const user of ["Moe", "Trish"]) {
+        const trend = getWeeklyTrend(user, getWeeklyPlan(user), state.eventsCache);
+        renderTrendArrow(user, trend);
+    }
+
+    // ===== NEW: Buddy Accountability =====
+    if (selectedUser) {
+        const partnerInfo = getPartnerStreakInfo(selectedUser, state.eventsCache);
+        renderBuddyStatus(partnerInfo.partner, partnerInfo.zeroStreak);
+    }
 
     if (el.adjustTodayModal && !el.adjustTodayModal.classList.contains("hidden") && state.activeModalUser) {
         renderAdjustTodayUI();
