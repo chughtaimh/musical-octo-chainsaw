@@ -1630,3 +1630,80 @@ input:focus {
     opacity: 0;
   }
 }
+/* ===== CHANGELOG MODAL ===== */
+#changelog-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  box-sizing: border-box;
+}
+
+#changelog-modal .changelog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+}
+
+#changelog-modal .changelog-card {
+  position: relative;
+  width: min(500px, 92vw);
+  background: #fff;
+  border-radius: 26px;
+  box-shadow: var(--shadow-xl);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  padding: 24px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.changelog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.changelog-title {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--trish); /* Use brand color */
+  margin: 0;
+}
+
+.changelog-version {
+  background: #f0f0f0;
+  color: #888;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.changelog-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px 0;
+}
+
+.changelog-list li {
+  padding: 8px 0;
+  border-bottom: 2px dashed #f9f9f9;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  gap: 10px;
+}
+
+.changelog-list li::before {
+  content: "✨";
+}
+
+.changelog-actions {
+  text-align: center;
+}

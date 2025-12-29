@@ -1,0 +1,8 @@
+{
+  "version": "1.0.1",
+  "changes": [
+    "Improved update notifications",
+    "Made detailed changelogs available",
+    "Fixed frequent notification spam"
+  ]
+}

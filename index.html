@@ -25,77 +25,7 @@
   <link rel="apple-touch-icon"
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23fdfbf7' rx='22'/%3E%3Crect x='15' y='35' width='25' height='35' rx='4' fill='%236ab7ff' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M40 40 C 50 40, 50 60, 40 60' fill='none' stroke='%23544a4a' stroke-width='3'/%3E%3Crect x='15' y='35' width='25' height='10' rx='2' fill='white' opacity='0.5'/%3E%3Cpath d='M60 35 Q 60 60 75 60 Q 90 60 90 35 Z' fill='%23ff8da1' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='75' y1='60' x2='75' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cline x1='65' y1='80' x2='85' y2='80' stroke='%23544a4a' stroke-width='3'/%3E%3Cpath d='M50 20 L52 25 L57 27 L52 29 L50 34 L48 29 L43 27 L48 25 Z' fill='%23ffd700'/%3E%3C/svg%3E" />
 
-  <script>
-    // Service Worker with smart update handling
-    (function () {
-      if (!('serviceWorker' in navigator)) return;
 
-      let userActive = false;
-      let updateAvailable = false;
-      let lastActivity = Date.now();
-
-      // Track user activity
-      const activityEvents = ['click', 'touchstart', 'keydown', 'scroll'];
-      const markActive = () => {
-        userActive = true;
-        lastActivity = Date.now();
-      };
-      activityEvents.forEach(e => document.addEventListener(e, markActive, { passive: true }));
-
-      // Reset activity flag after idle period
-      setInterval(() => {
-        if (Date.now() - lastActivity > 5000) {
-          userActive = false;
-        }
-      }, 2000);
-
-      // Show update banner instead of immediate reload
-      function showUpdateBanner() {
-        if (document.getElementById('update-banner')) return;
-
-        const banner = document.createElement('div');
-        banner.id = 'update-banner';
-        banner.className = 'update-banner';
-        banner.innerHTML = `
-          <span class="update-banner-text">✨ New version available!</span>
-          <button class="update-banner-btn" onclick="location.reload()">Refresh</button>
-          <button class="update-banner-dismiss" onclick="this.parentElement.remove()" aria-label="Dismiss">&times;</button>
-        `;
-        document.body.appendChild(banner);
-
-        // Animate in
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            banner.classList.add('visible');
-          });
-        });
-      }
-
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => {
-            console.log('[SW] Registered:', reg.scope);
-
-            // Check for updates periodically
-            reg.update();
-            setInterval(() => reg.update(), 60000);
-          })
-          .catch(err => console.warn('[SW] Registration failed:', err));
-      });
-
-      // Handle controller change (new SW activated)
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        // If user hasn't interacted recently, safe to reload
-        if (!userActive && Date.now() - lastActivity > 5000) {
-          window.location.reload();
-        } else {
-          // Show banner for user to manually refresh
-          updateAvailable = true;
-          showUpdateBanner();
-        }
-      });
-    })();
-  </script>
 </head>
 
 <body>

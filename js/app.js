@@ -5,6 +5,7 @@ import {
     safeInt, normalizeDrinkType, drinkTypeEmoji, startOfDayLocal,
     fmtRange, plural
 } from "./utils.js";
+import { initUpdates } from "./updates.js";
 import {
     rebuildEventsCache, getWeekProgress, parseIntent, parseUsers,
     resolveTimeRange, aggregate, daysTouchedByRange, getZeroStreakDays,
@@ -513,6 +514,8 @@ window.addEventListener("DOMContentLoaded", () => {
     seedWeeklyPlansFromLocalStorage();
     seedCommitmentsFromLocalStorage();
     ensureLastDrinkTypeDefaults();
+
+    initUpdates();
 
     // Listeners
     if (el.btnLogin) el.btnLogin.addEventListener("click", login);
