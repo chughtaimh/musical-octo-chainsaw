@@ -516,7 +516,17 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Listeners
     if (el.btnLogin) el.btnLogin.addEventListener("click", login);
-    if (el.pass) el.pass.addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+    if (el.pass) {
+        el.pass.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") login();
+        });
+        el.pass.addEventListener("input", () => {
+            const hasText = !!el.pass.value;
+            if (el.btnLogin) el.btnLogin.disabled = !hasText;
+            const helper = document.getElementById("login-helper");
+            if (helper) helper.style.opacity = hasText ? "0" : "1";
+        });
+    }
 
     if (el.btnProfileMoe) {
         el.btnProfileMoe.addEventListener("click", () => {
