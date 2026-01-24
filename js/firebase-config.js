@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDwjSeEdz3g6ofnvvURIr_Q_q0KII4QtdU",
@@ -14,9 +15,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app); // Initialize Auth
+
+export { app, db, auth, historyRef, weeklyPlansRef, commitmentsRef, push, set, ref, onValue, signInWithEmailAndPassword, onAuthStateChanged };
 
 const historyRef = ref(db, "history");
 const weeklyPlansRef = ref(db, "weeklyPlans");
 const commitmentsRef = ref(db, "commitments");
-
-export { app, db, historyRef, weeklyPlansRef, commitmentsRef, push, set, ref, onValue };

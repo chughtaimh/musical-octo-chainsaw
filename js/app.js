@@ -1,10 +1,14 @@
-import { db, historyRef, weeklyPlansRef, commitmentsRef, push, set, ref, onValue } from "./firebase-config.js";
+import {
+    db, historyRef, weeklyPlansRef, commitmentsRef, push, set, ref, onValue,
+    auth, signInWithEmailAndPassword, onAuthStateChanged
+} from "./firebase-config.js";
 import { LS, DAY_MS, VALID_DRINK_TYPES } from "./constants.js";
 import { state } from "./state.js";
 import {
     safeInt, normalizeDrinkType, drinkTypeEmoji, startOfDayLocal,
     fmtRange, plural
 } from "./utils.js";
+
 import { initUpdates } from "./updates.js";
 import {
     rebuildEventsCache, getWeekProgress, parseIntent, parseUsers,
@@ -461,15 +465,33 @@ function startApp() {
 }
 
 function login() {
-    if (el.pass.value === "Moetrin") {
-        safeSetItem(LS.auth, "Moetrin");
-        startApp();
-    } else {
-        showToast("Wrong password. Please try again.", "error");
-        el.pass.value = "";
-        el.pass.classList.add("shake-error");
-        setTimeout(() => el.pass.classList.remove("shake-error"), 500);
+    const pass = el.pass.value;
+    const email = "moetrin@tracker.com"; // The email you created in Step 1
+
+    // Disable button while loading
+    if (el.btnLogin) {
+        el.btnLogin.textContent = "Verifying...";
+        el.btnLogin.disabled = true;
     }
+
+    signInWithEmailAndPassword(auth, email, pass)
+        .then((userCredential) => {
+            // Success! The onAuthStateChanged listener will handle the rest
+            console.log("Logged in:", userCredential.user.uid);
+        })
+        .catch((error) => {
+            // Reset button
+            if (el.btnLogin) {
+                el.btnLogin.textContent = "Start Tracker";
+                el.btnLogin.disabled = false;
+            }
+
+            showToast("Wrong password. Please try again.", "error");
+            el.pass.value = "";
+            el.pass.classList.add("shake-error");
+            setTimeout(() => el.pass.classList.remove("shake-error"), 500);
+            console.error(error.code, error.message);
+        });
 }
 
 // --- Initialization ---
@@ -705,8 +727,18 @@ window.addEventListener("DOMContentLoaded", () => {
         syncSettingsUIFromState();
     });
 
-    // Auto Login Check
-    if (safeGetItem(LS.auth) === "Moetrin") startApp();
+    // Real Firebase Auth Check
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // User is signed in, boot the app
+            console.log("User is authenticated");
+            startApp();
+        } else {
+            // User is signed out, show login screen
+            el.viewLogin.classList.remove("hidden");
+            // Ensure main app is hidden if they log out (optional)
+        }
+    });
 
     // Tab Switching
     document.getElementById("tab-tracker")?.addEventListener("click", () => switchTab("tracker"));
