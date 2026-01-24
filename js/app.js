@@ -465,33 +465,64 @@ function startApp() {
 }
 
 function login() {
-    const pass = el.pass.value;
-    const email = "moetrin@tracker.com"; // The email you created in Step 1
+    // 1. Get elements directly to be safe
+    const emailField = document.getElementById("email-input");
+    const passField = document.getElementById("pass-input");
+    const errorMsg = document.getElementById("login-error");
+    const btn = document.getElementById("btn-login");
 
-    // Disable button while loading
-    if (el.btnLogin) {
-        el.btnLogin.textContent = "Verifying...";
-        el.btnLogin.disabled = true;
+    const email = emailField.value.trim();
+    const pass = passField.value;
+
+    // 2. Basic validation
+    if (!email || !pass) {
+        showLoginError("Please enter both email and password.");
+        return;
     }
 
+    // 3. UI Loading State
+    btn.textContent = "Verifying...";
+    btn.disabled = true;
+    errorMsg.style.display = "none"; // Hide previous errors
+
+    // 4. Firebase Sign In
     signInWithEmailAndPassword(auth, email, pass)
         .then((userCredential) => {
-            // Success! The onAuthStateChanged listener will handle the rest
+            // Success! The onAuthStateChanged listener at the bottom 
+            // of the file will handle booting the app.
             console.log("Logged in:", userCredential.user.uid);
         })
         .catch((error) => {
-            // Reset button
-            if (el.btnLogin) {
-                el.btnLogin.textContent = "Start Tracker";
-                el.btnLogin.disabled = false;
+            // 5. Handle Errors
+            btn.textContent = "Log In";
+            btn.disabled = false;
+
+            console.error("Login failed:", error.code);
+
+            if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password") {
+                showLoginError("Incorrect email or password.");
+            } else if (error.code === "auth/too-many-requests") {
+                showLoginError("Too many failures. Try again later.");
+            } else {
+                showLoginError("Login failed. Check connection.");
             }
 
-            showToast("Wrong password. Please try again.", "error");
-            el.pass.value = "";
-            el.pass.classList.add("shake-error");
-            setTimeout(() => el.pass.classList.remove("shake-error"), 500);
-            console.error(error.code, error.message);
+            // Shake the card for effect
+            passField.value = "";
+            passField.classList.add("shake-error");
+            setTimeout(() => passField.classList.remove("shake-error"), 500);
         });
+}
+
+// Helper to show error text
+function showLoginError(msg) {
+    const errorMsg = document.getElementById("login-error");
+    const helper = document.getElementById("login-helper");
+    if (errorMsg) {
+        errorMsg.textContent = msg;
+        errorMsg.style.display = "block";
+    }
+    if (helper) helper.style.display = "none"; // Hide the helper to make room
 }
 
 // --- Initialization ---

@@ -1630,6 +1630,7 @@ input:focus {
     opacity: 0;
   }
 }
+
 /* ===== CHANGELOG MODAL ===== */
 #changelog-modal {
   position: fixed;
@@ -1672,7 +1673,8 @@ input:focus {
 .changelog-title {
   font-size: 1.4rem;
   font-weight: 900;
-  color: var(--trish); /* Use brand color */
+  color: var(--trish);
+  /* Use brand color */
   margin: 0;
 }
 

@@ -48,9 +48,19 @@
       <div class="login-card">
         <div style="font-size: 4rem; margin-bottom: 20px;">⛩️</div>
         <h2 style="margin-bottom:10px; color: var(--trish);">Welcome Back!</h2>
-        <input type="password" id="pass-input" placeholder="Password" />
-        <p id="login-helper" style="font-size: 0.9rem; color: #aaa; margin: 10px 0;">Please enter password to unlock</p>
-        <button id="btn-login" class="btn-main" disabled>Start Tracker</button>
+
+        <!-- NEW: Email Input -->
+        <input type="email" id="email-input" placeholder="Email" autocomplete="username" style="margin-bottom: 10px;" />
+
+        <!-- UPDATED: Password Input with autocomplete -->
+        <input type="password" id="pass-input" placeholder="Password" autocomplete="current-password" />
+
+        <!-- NEW: Error message area (hidden by default) -->
+        <p id="login-error" style="color: red; font-size: 0.9rem; margin: 10px 0; display: none;"></p>
+
+        <p id="login-helper" style="font-size: 0.9rem; color: #aaa; margin: 10px 0;">Sign in to sync your drinks</p>
+
+        <button id="btn-login" class="btn-main">Log In</button>
       </div>
     </div>
 
